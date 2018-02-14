@@ -14,9 +14,10 @@ COMMA:=,
 scheduler: $(PROTOS) $(SRC)
 	$(GO) build
 
-# Override go package name to import api
+# Override go package name to import api & depend on it
+schedserver/task.pb.go: schedapi/api.proto
 schedserver/task.pb.go: GO_PROTOC_FLAGS+= Mschedapi/api.proto=github.com/arthurfabre/scheduler/schedapi
 
 # Compile proto definition
 %.pb.go: %.proto
-	$(PROTOC) $^ --go_out=plugins=grpc$(foreach f,$(GO_PROTOC_FLAGS),$(COMMA)$f):./
+	$(PROTOC) $*.proto --go_out=plugins=grpc$(foreach f,$(GO_PROTOC_FLAGS),$(COMMA)$f):./
