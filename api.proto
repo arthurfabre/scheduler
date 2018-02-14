@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+/**
+ * Unique idenitifer for a Task
+ */
+message TaskID {
+    string uuid = 1;
+}
+
+/**
+ * Status of a Task
+ */
+message TaskStatus {
+    /**
+     * Task has been received, but has not started yet.
+     */
+    message Queued {}
+
+    /**
+     * Task is executing on a node.
+     */
+    message Running {}
+
+    /**
+     * Task has finished executing (successfully or not).
+     */
+    message Complete {
+        sint32 exit_code = 1;
+    }
+
+    /**
+     * Task has become lost due to an internal error (node crash).
+     */
+    message Lost {}
+
+    oneof Status {
+        Queued queued = 1;
+        Running running = 2;
+        Complete complete = 3;
+        Lost lost = 4;
+    }
+}
+
+message TaskRequest {
+    string command = 1;
+    repeated string args = 2;
+    // TODO - Ressource limits / requirements
+    // TODO - Policy for restarting "lost" tasks
+}
+
+// TODO - We should probably use google.protobuf.Empty
+message Empty {
+}
+
+// TODO - Is this a sane way to split logs up?
+message Log {
+    repeated string line = 1;
+}
+
+// TODO - Should we have specific Request / Reponse messages so we can
+// change the API without breaking backwards compatibility?
+service TaskService {
+    rpc Submit(TaskRequest) returns (TaskID);
+    rpc Status(TaskID) returns (TaskStatus);
+    rpc Cancel(TaskID) returns (Empty);
+    rpc Logs(TaskID) returns (stream Log);
+}
