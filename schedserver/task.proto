@@ -1,13 +1,13 @@
 syntax = "proto3";
 package schedserver;
 
-import "api.proto";
+import "schedapi/api.proto";
 
 // Internal representation of a task
 // Stored in etcd
 message Task {
-    TaskRequest request = 1;
-    TaskStatus status = 2;
+    schedapi.TaskRequest request = 1;
+    schedapi.TaskStatus status = 2;
     // TODO - Track assigned node?
     // Perhaps in TaskStatus.Running
 }
