@@ -1,0 +1,13 @@
+syntax = "proto3";
+package scheduler;
+
+import "api.proto";
+
+// Internal representation of a task
+// Stored in etcd
+message Task {
+    TaskRequest request = 1;
+    TaskStatus status = 2;
+    // TODO - Track assigned node?
+    // Perhaps in TaskStatus.Running
+}
