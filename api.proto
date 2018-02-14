@@ -1,4 +1,5 @@
 syntax = "proto3";
+package scheduler;
 
 /**
  * Unique idenitifer for a Task
