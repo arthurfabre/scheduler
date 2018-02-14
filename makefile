@@ -10,14 +10,18 @@ GO:=go
 # Single comma
 COMMA:=,
 
+# Include proto dependency 
+PROTO_DEPS:=$(PROTOS:.pb.go=.d)
+-include $(PROTO_DEPS)
+
 # Build server
 scheduler: $(PROTOS) $(SRC)
 	$(GO) build
 
-# Override go package name to import api & depend on it
-schedserver/task.pb.go: schedapi/api.proto
+# Override go package name to depend on it
+# TODO - Could we do this automatically from depdency info somehow?
 schedserver/task.pb.go: GO_PROTOC_FLAGS+= Mschedapi/api.proto=github.com/arthurfabre/scheduler/schedapi
 
 # Compile proto definition
 %.pb.go: %.proto
-	$(PROTOC) $*.proto --go_out=plugins=grpc$(foreach f,$(GO_PROTOC_FLAGS),$(COMMA)$f):./
+	$(PROTOC) $*.proto --dependency_out=$*.d --go_out=plugins=grpc$(foreach f,$(GO_PROTOC_FLAGS),$(COMMA)$f):./
