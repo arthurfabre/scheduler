@@ -25,3 +25,8 @@ schedserver/task.pb.go: GO_PROTOC_FLAGS+= Mschedapi/api.proto=github.com/arthurf
 # Compile proto definition
 %.pb.go: %.proto
 	$(PROTOC) $*.proto --dependency_out=$*.d --go_out=plugins=grpc$(foreach f,$(GO_PROTOC_FLAGS),$(COMMA)$f):./
+
+.PHONY: clean
+clean:
+	rm -rf $(PROTOS) $(PROTO_DEPS)
+	go clean
