@@ -1,5 +1,5 @@
 syntax = "proto3";
-package scheduler;
+package schedapi;
 
 /**
  * Unique idenitifer for a Task
