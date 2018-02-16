@@ -20,13 +20,26 @@ message TaskStatus {
     /**
      * Task is executing on a node.
      */
-    message Running {}
+    message Running {
+        /**
+         * Node the task is running on.
+         */
+        string node_id = 1;
+    }
 
     /**
      * Task has finished executing (successfully or not).
      */
     message Complete {
-        sint32 exit_code = 1;
+        /**
+         * Node the task was completed on.
+         */
+        string node_id = 1;
+
+        /**
+         * Task exit code.
+         */
+        sint32 exit_code = 2;
     }
 
     /**
