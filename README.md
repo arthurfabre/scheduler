@@ -91,6 +91,11 @@
 
 * Work distribution could be unfair (see Work Stealing Algorithm)
 
+* Etcd is embedded in every node, limiting max cluster size (etc recommends 7 max)
+    * Could be replaced with a proxy in some nodes
+
+* All comms are over HTTP, not HTTPS
+
 
 # TODO
 
