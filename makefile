@@ -15,6 +15,7 @@ PROTO_DEPS:=$(PROTOS:.pb.go=.d)
 -include $(PROTO_DEPS)
 
 # Build server
+.DEFAULT_GOAL:=scheduler
 scheduler: $(PROTOS) $(SRC)
 	$(GO) build
 
