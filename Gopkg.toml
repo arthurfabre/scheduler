@@ -1,0 +1,17 @@
+[[constraint]]
+  name = "github.com/coreos/etcd"
+  version = "~3.3.1"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "~1.10.0"
+
+# Override to get etcd to build
+# This is the version they specify in https://github.com/coreos/etcd/blob/master/Gopkg.lock#L16
+[[override]]
+  name = "github.com/coreos/bbolt"
+  version = "v1.3.1-coreos.6"
+
+[prune]
+  go-tests = true
+  unused-packages = true

@@ -1,5 +1,24 @@
 * Kubernetes like thing
 
+# Usage
+
+## Requirements
+
+* `make`
+
+* `protoc`
+
+* `protoc-gen-go`: https://github.com/golang/protobuf/
+
+* `go dep`
+
+
+## Build
+
+* `dep ensure`: Download & vendor all dependencies
+
+* `make`: Build `./scheduler`
+
 
 # Design
 
