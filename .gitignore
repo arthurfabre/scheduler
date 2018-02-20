@@ -1,5 +1,8 @@
 # Compiled protos
 *.pb.go
 
+# Proto dependencies
+*.d
+
 # scheduler binary
 scheduler
