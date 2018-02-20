@@ -5,5 +5,5 @@ package main
 import "github.com/arthurfabre/scheduler/schedserver"
 
 func main() {
-    schedserver.Main()
+	schedserver.Main()
 }

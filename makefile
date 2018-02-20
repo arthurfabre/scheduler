@@ -17,6 +17,7 @@ PROTO_DEPS:=$(PROTOS:.pb.go=.d)
 # Build server
 .DEFAULT_GOAL:=scheduler
 scheduler: $(PROTOS) $(SRC)
+	$(GO) fmt ./...
 	$(GO) build
 
 # Override go package name to depend on it
