@@ -43,15 +43,15 @@ message TaskStatus {
     }
 
     /**
-     * Task has become lost due to an internal error (node crash).
+     * Task has been cancelled.
      */
-    message Lost {}
+    message Cancelled {}
 
     oneof Status {
         Queued queued = 1;
         Running running = 2;
         Complete complete = 3;
-        Lost lost = 4;
+        Cancelled cancelled = 4;
     }
 }
 
@@ -59,7 +59,6 @@ message TaskRequest {
     string command = 1;
     repeated string args = 2;
     // TODO - Ressource limits / requirements
-    // TODO - Policy for restarting "lost" tasks
 }
 
 // TODO - We should probably use google.protobuf.Empty
