@@ -44,11 +44,9 @@
 
 * Nodes watch tasks they're running to see if they've been stopped / canceled
 
-* Etcd leader monitors nodes (using Maintenance Alarms)
-    * When a node fails, it's tasks are migrated to back to "pending" or "complete"
-    * What happens if node doesn't realize it's been considered failed?
-        * Does etcd handle this?
-        * Task proto etcd revision will have changed, node should realize this
+* Nodes generate unique UUID for themselves, and store in etcd with a lease
+    * Etcd leader monitors this keyspace for DELETES - indicate a node has gone
+        * Its tasks are sent back to "queued"
 
 
 ## ETCD Key Schema
@@ -111,22 +109,22 @@
 * Work distribution could be unfair (see Work Stealing Algorithm)
 
 * Etcd is embedded in every node, limiting max cluster size (etc recommends 7 max)
-    * Could be replaced with a proxy in some nodes
+    * Could be replaced with a proxy in some (most) nodes
+        * No design limits preventing this implementation
+
+* Single node (Etcd leader) in charge of cleanup
+    * Distributed stealing algorithm could be implemented instead
 
 * All comms are over HTTP, not HTTPS
 
 
 # TODO
 
-* How does etc handle missing / disappearing nodes?
-    * Need to modify status of tasks on said nodes
-        * Checked by all nodes, or just leader?
-
 * Remove old finished jobs from etcd
 
 * Testing
 
-* Database compaction?
+* Database compaction & defrag
 
 
 # Background docs

@@ -9,6 +9,21 @@ message TaskID {
 }
 
 /**
+ * Unique identifier of a Node
+ */
+message NodeID {
+    /**
+     * UUID of the node.
+     */
+    string uuid = 1;
+
+    /**
+     * Public URL(s) on which the node is listening for API requests.
+     */
+    repeated string url = 2;
+}
+
+/**
  * Status of a Task
  */
 message TaskStatus {
@@ -24,7 +39,7 @@ message TaskStatus {
         /**
          * Node the task is running on.
          */
-        string node_id = 1;
+        NodeID node_id = 1;
     }
 
     /**
@@ -34,7 +49,7 @@ message TaskStatus {
         /**
          * Node the task was completed on.
          */
-        string node_id = 1;
+        NodeID node_id = 1;
 
         /**
          * Task exit code.
