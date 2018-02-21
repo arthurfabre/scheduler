@@ -8,6 +8,5 @@ import "schedapi/api.proto";
 message Task {
     schedapi.TaskRequest request = 1;
     schedapi.TaskStatus status = 2;
-    // TODO - Track assigned node?
-    // Perhaps in TaskStatus.Running
+    schedapi.TaskID id = 3;
 }
