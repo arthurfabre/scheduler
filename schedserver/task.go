@@ -19,16 +19,15 @@ const (
 
 // NewTask constructs a Task from a TaskRequest, assigining it a UUID.
 // Status defaults to Queued
-func newTask(client *clientv3.Client, ctx context.Context, req *api.TaskRequest) *Task {
+func newTask(client *clientv3.Client, ctx context.Context, req *api.TaskRequest) (*Task, error) {
 	// TODO - make UUID, queue()
-	return nil
+	return nil, nil
 }
 
-func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) *Task {
+func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Task, error) {
 	resp, err := client.Get(ctx, taskID2Key(id))
 	if err != nil {
-		// TODO
-		log.Fatalln("Failed to retrieve Task:", err)
+		return nil, err
 	}
 
 	// We're not searching for a range or prefix
@@ -38,10 +37,10 @@ func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) *Task
 
 	task := &Task{}
 	if err := proto.Unmarshal([]byte(resp.Kvs[0].Value), task); err != nil {
-		log.Fatalln("Failed to parse Task:", err)
+		return nil, err
 	}
 
-	return task
+	return task, nil
 }
 
 func taskID2Key(id *api.TaskID) string {

@@ -7,31 +7,49 @@ import (
 	//"time"
 	"context"
 	api "github.com/arthurfabre/scheduler/schedapi"
+	"github.com/coreos/etcd/clientv3"
 	"google.golang.org/grpc"
 )
 
 type taskServiceServer struct {
+	client *clientv3.Client
 }
 
 func (s *taskServiceServer) Submit(ctx context.Context, req *api.TaskRequest) (*api.TaskID, error) {
-	// TODO
-	// Generate UUID
-	// Write Task proto to /task/UUID
-	// Write /status/queued/UUID
-	return nil, nil
+	task, err := newTask(s.client, ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	err = task.queue(s.client, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return task.Id, nil
 }
 
 func (s *taskServiceServer) Status(ctx context.Context, id *api.TaskID) (*api.TaskStatus, error) {
-	// TODO
-	// Get /task/UUID
-	return nil, nil
+	task, err := getTask(s.client, ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return task.Status, nil
 }
 
 func (s *taskServiceServer) Cancel(ctx context.Context, id *api.TaskID) (*api.Empty, error) {
-	// TODO
-	// Update status in /task/UUID
-	// Running server will handle queue shenanigans
-	return nil, nil
+	task, err := getTask(s.client, ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	err = task.cancel(s.client, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.Empty{}, nil
 }
 
 func (s *taskServiceServer) Logs(id *api.TaskID, stream api.TaskService_LogsServer) error {
