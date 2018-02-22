@@ -1,5 +1,5 @@
 syntax = "proto3";
-package schedserver;
+package pb;
 
 import "schedapi/api.proto";
 

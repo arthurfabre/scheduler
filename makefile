@@ -1,6 +1,6 @@
 # List of source files
-PROTOS:=schedapi/api.pb.go schedserver/task.pb.go
-SRC:=main.go $(wildcard schedserver/*.go)
+PROTOS:=schedapi/api.pb.go schedserver/pb/task.pb.go
+SRC:=main.go $(shell find schedserver/ -name '*.go')
 
 # Commands
 PROTOC:=protoc
@@ -22,7 +22,7 @@ scheduler: $(PROTOS) $(SRC)
 
 # Override go package name to depend on it
 # TODO - Could we do this automatically from depdency info somehow?
-schedserver/task.pb.go: GO_PROTOC_FLAGS+= Mschedapi/api.proto=github.com/arthurfabre/scheduler/schedapi
+schedserver/pb/task.pb.go: GO_PROTOC_FLAGS+= Mschedapi/api.proto=github.com/arthurfabre/scheduler/schedapi
 
 # Compile proto definition
 %.pb.go: %.proto
