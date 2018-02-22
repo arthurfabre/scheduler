@@ -54,18 +54,24 @@
 * One prefix for jobs, with proto Task values
     * `/task/UUID -> Task Proto`
 * Separate prefixes for:
-    * complete
-        * `/status/complete/UUID -> NULL`
     * queued
-        * `/status/queued/UUID -> NULL`
-    * each node (for in progress)
-        * `/status/running/NODE_ID/UUID -> NULL`
+        * `/task/status/queued/UUID -> NULL`
+    * running
+        * `/task/status/running/NODE_ID/UUID -> NULL`
+            * `NODE_ID` is the UUID of the node running the task
+    * complete
+        * `/task/status/complete/EPOCH/UUID -> NULL`
+            * `EPOCH` is the UNIX Epoch at which the task was completed
+    * canceled
+        * `/task/status/canceled/EPOCH/UUID -> NULL`
+            * `EPOCH` is the UNIX Epoch at which the task was canceled
     * only keys, no values (doesn't seem supported, might have to use empty string)
 
 * Pros:
     * Allows simple O(1) job retrieval
     * Allows easy watching of queued jobs
     * Easy to move all tasks of failed node to complete or pending (if we retry tasks)
+    * Easy to remove old completed / cancelled t
 * Cons:
     * Lots of keys
     * Need to keep proto Task value status in sync with prefixes tracking Task status

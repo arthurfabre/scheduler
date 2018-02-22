@@ -55,18 +55,28 @@ message TaskStatus {
          * Task exit code.
          */
         sint32 exit_code = 2;
+
+        /**
+         * Epoch at which this task was completed.
+         */
+        int64 epoch = 3;
     }
 
     /**
      * Task has been cancelled.
      */
-    message Cancelled {}
+    message Canceled {
+        /**
+         * Epoch at which this task was canceled.
+         */
+        int64 epoch = 1;
+    }
 
     oneof Status {
         Queued queued = 1;
         Running running = 2;
         Complete complete = 3;
-        Cancelled cancelled = 4;
+        Canceled canceled = 4;
     }
 }
 
