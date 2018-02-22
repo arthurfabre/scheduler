@@ -16,12 +16,9 @@ type taskServiceServer struct {
 }
 
 func (s *taskServiceServer) Submit(ctx context.Context, req *api.TaskRequest) (*api.TaskID, error) {
-	task, err := newTask(s.client, ctx, req)
-	if err != nil {
-		return nil, err
-	}
+	task := newTask(req)
 
-	err = task.queue(s.client, ctx)
+	err := task.queue(s.client, ctx)
 	if err != nil {
 		return nil, err
 	}
