@@ -2,13 +2,13 @@
 package schedserver
 
 import (
-	//"fmt"
-	//"log"
-	//"time"
 	"context"
+	"fmt"
 	api "github.com/arthurfabre/scheduler/schedapi"
 	"github.com/coreos/etcd/clientv3"
 	"google.golang.org/grpc"
+	"log"
+	"net"
 )
 
 type taskServiceServer struct {
@@ -57,7 +57,12 @@ func (s *taskServiceServer) Logs(id *api.TaskID, stream api.TaskService_LogsServ
 	return nil
 }
 
-func startApi() {
-	// Prevent unused import for now
-	var _ []grpc.ServerOption
+func (s *taskServiceServer) Start(port int) {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		log.Fatalln("Failed to listen on port %d", port, err)
+	}
+
+	grpcServer := grpc.NewServer()
+	grpcServer.Serve(lis)
 }
