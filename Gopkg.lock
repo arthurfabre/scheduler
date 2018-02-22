@@ -21,6 +21,7 @@
     "auth/authpb",
     "client",
     "clientv3",
+    "clientv3/clientv3util",
     "clientv3/concurrency",
     "compactor",
     "discovery",
@@ -230,6 +231,12 @@
   revision = "282c8707aa210456a825798969cc27edda34992a"
 
 [[projects]]
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
+
+[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "d682213848ed68c0a260ca37d6dd5ace8423f5ba"
@@ -366,6 +373,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "074bd261f6d58f58cee127055b14af6264763592a465950a0d038d4bf73ff4b3"
+  inputs-digest = "18e0e5dc9eb90bdb0c7369df39cf837b127b7d7eac5478201c2ed037db194f10"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -6,7 +6,9 @@ import (
 	api "github.com/arthurfabre/scheduler/schedapi"
 	"github.com/arthurfabre/scheduler/schedserver/pb"
 	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3/clientv3util"
 	"github.com/golang/protobuf/proto"
+	"github.com/satori/go.uuid"
 	"log"
 	"strconv"
 	"time"
@@ -23,8 +25,8 @@ const (
 type Task struct {
 	*pb.Task
 
-	// Etcd revision of this instance
-	revision int64
+	// Version in etcd when this was last updated / retrieved
+	version int64
 
 	// Key in etcd
 	key string
@@ -33,8 +35,15 @@ type Task struct {
 // NewTask constructs a Task from a TaskRequest, assigining it a UUID.
 // Status defaults to Queued
 func newTask(client *clientv3.Client, ctx context.Context, req *api.TaskRequest) (*Task, error) {
-	// TODO - make UUID, queue()
-	return nil, nil
+	id := &api.TaskID{uuid.NewV4().String()}
+
+	task := &Task{key: taskKey(id), Task: &pb.Task{Request: req, Id: id}}
+
+	if err := task.queue(client, ctx); err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }
 
 func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Task, error) {
@@ -50,7 +59,7 @@ func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Tas
 		log.Fatalln("Too many matching keys, found:", resp.Count)
 	}
 
-	task := &Task{revision: resp.Kvs[0].ModRevision, key: key}
+	task := &Task{version: resp.Kvs[0].Version, key: key}
 	if err := proto.Unmarshal([]byte(resp.Kvs[0].Value), task.Task); err != nil {
 		return nil, err
 	}
@@ -100,21 +109,26 @@ func (t *Task) setStatus(client *clientv3.Client, ctx context.Context, newStatus
 	kvc := clientv3.NewKV(client)
 
 	// We always need to update the task and its status key
-	ops := []clientv3.Op{
+	thens := []clientv3.Op{
 		clientv3.OpPut(t.key, string(data)),
 		clientv3.OpPut(t.statusKey(newStatus), ""),
 	}
 
 	// If a previous status was set, cleanup its key
 	if oldStatus != nil {
-		ops = append(ops, clientv3.OpDelete(t.statusKey(oldStatus)))
+		thens = append(thens, clientv3.OpDelete(t.statusKey(oldStatus)))
 	}
 
-	resp, err := kvc.Txn(ctx).
-		// Check no one changed the Task since we loaded it
-		If(clientv3.Compare(clientv3.ModRevision(t.key), "=", t.revision)).
-		Then(ops...).
-		Commit()
+	var ifCheck clientv3.Cmp
+	if t.version > 0 {
+		// If the Task was already stored, ensure it hasn't changed
+		ifCheck = clientv3.Compare(clientv3.Version(t.key), "=", t.version)
+	} else {
+		// If it was never stored, ensure no one else has stolen that key
+		ifCheck = clientv3util.KeyMissing(t.key)
+	}
+
+	resp, err := kvc.Txn(ctx).If(ifCheck).Then(thens...).Commit()
 
 	if err != nil {
 		return
@@ -125,7 +139,8 @@ func (t *Task) setStatus(client *clientv3.Client, ctx context.Context, newStatus
 		return
 	}
 
-	t.revision++
+	// TODO - Hacky, TXN resp should have the Revision in there somewhere..
+	t.version++
 	return nil
 }
 
