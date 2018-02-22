@@ -2,6 +2,7 @@ package schedserver
 
 import (
 	"context"
+	"errors"
 	api "github.com/arthurfabre/scheduler/schedapi"
 	"github.com/arthurfabre/scheduler/schedserver/pb"
 	"github.com/coreos/etcd/clientv3"
@@ -24,6 +25,9 @@ type Task struct {
 
 	// Etcd revision of this instance
 	revision int64
+
+	// Key in etcd
+	key string
 }
 
 // NewTask constructs a Task from a TaskRequest, assigining it a UUID.
@@ -34,7 +38,9 @@ func newTask(client *clientv3.Client, ctx context.Context, req *api.TaskRequest)
 }
 
 func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Task, error) {
-	resp, err := client.Get(ctx, taskKey(id))
+	key := taskKey(id)
+
+	resp, err := client.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
@@ -44,12 +50,10 @@ func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Tas
 		log.Fatalln("Too many matching keys, found:", resp.Count)
 	}
 
-	task := &Task{}
+	task := &Task{revision: resp.Kvs[0].ModRevision, key: key}
 	if err := proto.Unmarshal([]byte(resp.Kvs[0].Value), task.Task); err != nil {
 		return nil, err
 	}
-
-	task.revision = resp.Kvs[0].ModRevision
 
 	return task, nil
 }
@@ -76,14 +80,52 @@ func (t *Task) statusKey(status *api.TaskStatus) string {
 	return key + keySep + t.Id.Uuid
 }
 
-func (t *Task) setStatus(client *clientv3.Client, ctx context.Context, s *api.TaskStatus) error {
-	//kvc := clientv3.NewKV(client)
+func (t *Task) setStatus(client *clientv3.Client, ctx context.Context, newStatus *api.TaskStatus) (err error) {
+	// Preserve old status to know which old key to delete
+	oldStatus := t.Status
+	t.Status = newStatus
 
-	// TODO - Need revision of Task to implement CAS
-	//_, err := kvc.Txn(ctx).
-	//	If(clientv3.  )
+	// If there's an error, ensure we set the oldStatus back
+	defer func() {
+		if err != nil {
+			t.Status = oldStatus
+		}
+	}()
 
-	// TODO - encode, write to etcd using TXN a
+	data, err := proto.Marshal(t.Task)
+	if err != nil {
+		return
+	}
+
+	kvc := clientv3.NewKV(client)
+
+	// We always need to update the task and its status key
+	ops := []clientv3.Op{
+		clientv3.OpPut(t.key, string(data)),
+		clientv3.OpPut(t.statusKey(newStatus), ""),
+	}
+
+	// If a previous status was set, cleanup its key
+	if oldStatus != nil {
+		ops = append(ops, clientv3.OpDelete(t.statusKey(oldStatus)))
+	}
+
+	resp, err := kvc.Txn(ctx).
+		// Check no one changed the Task since we loaded it
+		If(clientv3.Compare(clientv3.ModRevision(t.key), "=", t.revision)).
+		Then(ops...).
+		Commit()
+
+	if err != nil {
+		return
+	}
+
+	if !resp.Succeeded {
+		err = errors.New("Unexpected concurrent Task modification")
+		return
+	}
+
+	t.revision++
 	return nil
 }
 
