@@ -11,19 +11,19 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/satori/go.uuid"
 	"log"
+	"strings"
 	"time"
 )
 
+// Format strings for keys. Don't include the last %s for the Task UUID
+// See README/#ETCD Key Schema
 const (
-	// See README/#ETCD Key Schema
-	taskPrefix = "task/"
-	taskFmt    = taskPrefix + "%s"
-
-	statusPrefix = taskPrefix + "status/"
-	queuedFmt    = statusPrefix + "queued/%s"
-	runningFmt   = statusPrefix + "running/%s/%s"
-	completeFmt  = statusPrefix + "complete/%d/%s"
-	canceledFmt  = statusPrefix + "canceled/%d/%s"
+	taskFmt     = "task/"
+	statusFmt   = taskFmt + "status/"
+	queuedFmt   = statusFmt + "queued/"
+	runningFmt  = statusFmt + "running/%s/"
+	completeFmt = statusFmt + "complete/%d/"
+	canceledFmt = statusFmt + "canceled/%d/"
 )
 
 // Task handles storing and updating tasks (and their status) in etcd.
@@ -75,24 +75,40 @@ func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Tas
 
 // taskKey returns the etcd key for a TaskID
 func taskKey(id *api.TaskID) string {
-	return fmt.Sprintf(taskFmt, id.Uuid)
+	return idKey(taskFmt, id)
 }
 
 // statusKey returns the etcd status key of a Task for a given TaskStatus
 func (t *Task) statusKey(status *api.TaskStatus) string {
+	// Ensures the Task ID is passed in
+	key := func(format string, args ...interface{}) string {
+		return idKey(format, t.Id, args...)
+	}
+
 	switch status.Status.(type) {
 	case *api.TaskStatus_Queued_:
-		return fmt.Sprintf(queuedFmt, t.Id.Uuid)
+		return key(queuedFmt)
 	case *api.TaskStatus_Running_:
-		return fmt.Sprintf(runningFmt, status.GetRunning().NodeId.Uuid, t.Id.Uuid)
+		return key(runningFmt, status.GetRunning().NodeId.Uuid)
 	case *api.TaskStatus_Complete_:
-		return fmt.Sprintf(completeFmt, status.GetComplete().Epoch, t.Id.Uuid)
+		return key(completeFmt, status.GetComplete().Epoch)
 	case *api.TaskStatus_Canceled_:
-		return fmt.Sprintf(canceledFmt, status.GetCanceled().Epoch, t.Id.Uuid)
+		return key(canceledFmt, status.GetCanceled().Epoch)
 	default:
 		// TODO - Is this wise?
 		panic("Unexpected Task status")
 	}
+}
+
+// keyID converts a status / task key, to a TaskID
+func keyID(key string) *api.TaskID {
+	s := strings.Split(key, "/")
+	return &api.TaskID{Uuid: s[len(s)-1]}
+}
+
+// idKey converts a TaskID to a status / task key
+func idKey(format string, key *api.TaskID, args ...interface{}) string {
+	return fmt.Sprintf(format+"%s", append(args, key.Uuid)...)
 }
 
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
