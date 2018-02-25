@@ -60,9 +60,14 @@ func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Tas
 		log.Fatalln("Too many matching keys, found:", resp.Count)
 	}
 
-	task := &Task{version: resp.Kvs[0].Version, key: key}
+	task := &Task{version: resp.Kvs[0].Version, key: key, Task: &pb.Task{}}
 	if err := proto.Unmarshal([]byte(resp.Kvs[0].Value), task.Task); err != nil {
 		return nil, err
+	}
+
+	// Ensure what we requested and what we got back match up
+	if task.Id.Uuid != id.Uuid {
+		return nil, fmt.Errorf("Requested task %s, received %s", id.Uuid, task.Id.Uuid)
 	}
 
 	return task, nil
