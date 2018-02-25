@@ -3,6 +3,7 @@ package schedserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	api "github.com/arthurfabre/scheduler/schedapi"
 	"github.com/arthurfabre/scheduler/schedserver/pb"
 	"github.com/coreos/etcd/clientv3"
@@ -10,14 +11,19 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/satori/go.uuid"
 	"log"
-	"strconv"
 	"time"
 )
 
 const (
-	keySep       = "/"
-	taskPrefix   = "task" + keySep
-	statusPrefix = taskPrefix + "status" + keySep
+	// See README/#ETCD Key Schema
+	taskPrefix = "task/"
+	taskFmt    = taskPrefix + "%s"
+
+	statusPrefix = taskPrefix + "status/"
+	queuedFmt    = statusPrefix + "queued/%s"
+	runningFmt   = statusPrefix + "running/%s/%s"
+	completeFmt  = statusPrefix + "complete/%d/%s"
+	canceledFmt  = statusPrefix + "canceled/%d/%s"
 )
 
 // Task handles storing and updating tasks (and their status) in etcd.
@@ -64,26 +70,24 @@ func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Tas
 
 // taskKey returns the etcd key for a TaskID
 func taskKey(id *api.TaskID) string {
-	return taskPrefix + id.Uuid
+	return fmt.Sprintf(taskFmt, id.Uuid)
 }
 
 // statusKey returns the etcd status key of a Task for a given TaskStatus
 func (t *Task) statusKey(status *api.TaskStatus) string {
-	key := statusPrefix
-
-	// See README/#ETCD Key Schema
 	switch status.Status.(type) {
 	case *api.TaskStatus_Queued_:
-		key += "queued"
+		return fmt.Sprintf(queuedFmt, t.Id.Uuid)
 	case *api.TaskStatus_Running_:
-		key += "running" + keySep + status.GetRunning().NodeId.Uuid
+		return fmt.Sprintf(runningFmt, status.GetRunning().NodeId.Uuid, t.Id.Uuid)
 	case *api.TaskStatus_Complete_:
-		key += "complete" + keySep + strconv.FormatInt(status.GetComplete().Epoch, 10)
+		return fmt.Sprintf(completeFmt, status.GetComplete().Epoch, t.Id.Uuid)
 	case *api.TaskStatus_Canceled_:
-		key += "canceled" + keySep + strconv.FormatInt(status.GetCanceled().Epoch, 10)
+		return fmt.Sprintf(canceledFmt, status.GetCanceled().Epoch, t.Id.Uuid)
+	default:
+		// TODO - Is this wise?
+		panic("Unexpected Task status")
 	}
-
-	return key + keySep + t.Id.Uuid
 }
 
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
