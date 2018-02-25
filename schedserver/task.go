@@ -38,6 +38,74 @@ type Task struct {
 	key string
 }
 
+// watchQueuedTasks returns a Channel of Tasks that have just been queued
+// TODO - Potentially expose DELETE events, so we can backoff before stealing tasks
+func watchQueuedTasks(client *clientv3.Client, ctx context.Context) <-chan *Task {
+	out := make(chan *Task)
+
+	// TODO - Are we cleaning things up properly?
+	go func() {
+		for resp := range client.Watch(ctx, queuedFmt, clientv3.WithPrefix(), clientv3.WithFilterDelete()) {
+			for _, ev := range resp.Events {
+				task, err := getTask(client, ctx, keyID(string(ev.Kv.Key)))
+				if err != nil {
+					continue
+				}
+
+				out <- task
+			}
+		}
+	}()
+
+	return out
+}
+
+// listDoneTasks returns a list of Tasks that were done (completed or canceled) at least age seconds ago.
+func listDoneTasks(client *clientv3.Client, ctx context.Context, age int64) ([]*Task, error) {
+	list := func(preFmt string) ([]*Task, error) {
+		// Get everything from epoch 0 to (Now - age)
+		return listTasks(client, ctx, fmt.Sprintf(preFmt, 0), clientv3.WithRange(fmt.Sprintf(preFmt, time.Now().Unix())))
+	}
+
+	co, err := list(completeFmt)
+	if err != nil {
+		return nil, err
+	}
+
+	ca, err := list(canceledFmt)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(co, ca...), nil
+}
+
+// listNodeTasks returns a list of Tasks that are being run by nodeId.
+func listNodeTasks(client *clientv3.Client, ctx context.Context, nodeId *api.NodeID) ([]*Task, error) {
+	return listTasks(client, ctx, fmt.Sprintf(runningFmt, nodeId.Uuid), clientv3.WithPrefix())
+}
+
+// listTasks returns a list of Tasks using etcd GET(key, opts...). Intended to be used with status keys.
+func listTasks(client *clientv3.Client, ctx context.Context, key string, opts ...clientv3.OpOption) ([]*Task, error) {
+	resp, err := client.Get(ctx, key, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	tasks := make([]*Task, 0, resp.Count)
+
+	for _, t := range resp.Kvs {
+		task, err := getTask(client, ctx, keyID(string(t.Key)))
+		if err != nil {
+			continue
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	return tasks, nil
+}
+
 // newTask constructs a Task from a TaskRequest, assigining it a UUID.
 // Nothing is submitted to etcd.
 func newTask(req *api.TaskRequest) *Task {
