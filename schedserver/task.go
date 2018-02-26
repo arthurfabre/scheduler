@@ -64,7 +64,7 @@ func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan *Task
 func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]*Task, error) {
 	list := func(preFmt string) ([]*Task, error) {
 		// Get everything from epoch 0 to (Now - age)
-		return listTasks(ctx, client, fmt.Sprintf(preFmt, 0), clientv3.WithRange(fmt.Sprintf(preFmt, time.Now().Unix())))
+		return listTasks(ctx, client, fmt.Sprintf(preFmt, 0), clientv3.WithRange(fmt.Sprintf(preFmt, time.Now().Unix() - age)))
 	}
 
 	co, err := list(completeFmt)
