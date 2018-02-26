@@ -15,15 +15,14 @@ import (
 	"time"
 )
 
-// Format strings for keys. Don't include the last %s for the Task UUID
+// Format strings for prefixes. A prefix is a key with everything but the last Task UUID component
 // See README/#ETCD Key Schema
 const (
-	taskFmt     = "task/"
-	statusFmt   = taskFmt + "status/"
-	queuedFmt   = statusFmt + "queued/"
-	runningFmt  = statusFmt + "running/%s/"
-	completeFmt = statusFmt + "complete/%d/"
-	canceledFmt = statusFmt + "canceled/%d/"
+	taskPrefix        = "task/"
+	queuedPrefixFmt   = "task/status/queued/"
+	runningPrefixFmt  = "task/status/running/%s/"
+	completePrefixFmt = "task/status/complete/%d/"
+	canceledPrefixFmt = "task/status/canceled/%d/"
 )
 
 // Task handles storing and updating tasks (and their status) in etcd.
@@ -45,7 +44,7 @@ func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan *Task
 
 	// TODO - Are we cleaning things up properly?
 	go func() {
-		for resp := range client.Watch(ctx, queuedFmt, clientv3.WithPrefix(), clientv3.WithFilterDelete()) {
+		for resp := range client.Watch(ctx, queuedPrefix(), clientv3.WithPrefix(), clientv3.WithFilterDelete()) {
 			for _, ev := range resp.Events {
 				task, err := getTask(ctx, client, keyID(string(ev.Kv.Key)))
 				if err != nil {
@@ -62,17 +61,15 @@ func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan *Task
 
 // listDoneTasks returns a list of Tasks that were done (completed or canceled) at least age seconds ago.
 func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]*Task, error) {
-	list := func(preFmt string) ([]*Task, error) {
-		// Get everything from epoch 0 to (Now - age)
-		return listTasks(ctx, client, fmt.Sprintf(preFmt, 0), clientv3.WithRange(fmt.Sprintf(preFmt, time.Now().Unix() - age)))
-	}
+	// Get everything from epoch 0 to (Now - age)
+	end := time.Now().Unix() - age
 
-	co, err := list(completeFmt)
+	co, err := listTasks(ctx, client, completePrefix(0), clientv3.WithRange(completePrefix(end)))
 	if err != nil {
 		return nil, err
 	}
 
-	ca, err := list(canceledFmt)
+	ca, err := listTasks(ctx, client, canceledPrefix(0), clientv3.WithRange(canceledPrefix(end)))
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +79,7 @@ func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]*
 
 // listNodeTasks returns a list of Tasks that are being run by nodeId.
 func listNodeTasks(ctx context.Context, client *clientv3.Client, nodeId *api.NodeID) ([]*Task, error) {
-	return listTasks(ctx, client, fmt.Sprintf(runningFmt, nodeId.Uuid), clientv3.WithPrefix())
+	return listTasks(ctx, client, runningPrefix(nodeId), clientv3.WithPrefix())
 }
 
 // listTasks returns a list of Tasks using etcd GET(key, opts...). Intended to be used with status keys.
@@ -143,29 +140,48 @@ func getTask(ctx context.Context, client *clientv3.Client, id *api.TaskID) (*Tas
 
 // taskKey returns the etcd key for a TaskID
 func taskKey(id *api.TaskID) string {
-	return idKey(taskFmt, id)
+	return idKey(taskPrefix, id)
+}
+
+// queuedPrefix returns the status key prefix for queued tasks
+func queuedPrefix() string {
+	return queuedPrefixFmt
+}
+
+// runningPrefix returns the status key prefix for tasks running on id
+func runningPrefix(id *api.NodeID) string {
+	return fmt.Sprintf(runningPrefixFmt, id.Uuid)
+}
+
+// completePrefix returns the status key prefix for tasks completed at age
+func completePrefix(age int64) string {
+	return fmt.Sprintf(completePrefixFmt, age)
+}
+
+// canceledPrefix returns the status key prefix for tasks canceledat age
+func canceledPrefix(age int64) string {
+	return fmt.Sprintf(canceledPrefixFmt, age)
 }
 
 // statusKey returns the etcd status key of a Task for a given TaskStatus
 func (t *Task) statusKey(status *api.TaskStatus) string {
-	// Ensures the Task ID is passed in
-	key := func(format string, args ...interface{}) string {
-		return idKey(format, t.Id, args...)
-	}
+	var prefix string
 
 	switch status.Status.(type) {
 	case *api.TaskStatus_Queued_:
-		return key(queuedFmt)
+		prefix = queuedPrefix()
 	case *api.TaskStatus_Running_:
-		return key(runningFmt, status.GetRunning().NodeId.Uuid)
+		prefix = runningPrefix(status.GetRunning().NodeId)
 	case *api.TaskStatus_Complete_:
-		return key(completeFmt, status.GetComplete().Epoch)
+		prefix = completePrefix(status.GetComplete().Epoch)
 	case *api.TaskStatus_Canceled_:
-		return key(canceledFmt, status.GetCanceled().Epoch)
+		prefix = canceledPrefix(status.GetCanceled().Epoch)
 	default:
 		// TODO - Is this wise?
 		panic("Unexpected Task status")
 	}
+
+	return idKey(prefix, t.Id)
 }
 
 // keyID converts a status / task key, to a TaskID
@@ -174,9 +190,9 @@ func keyID(key string) *api.TaskID {
 	return &api.TaskID{Uuid: s[len(s)-1]}
 }
 
-// idKey converts a TaskID to a status / task key
-func idKey(format string, key *api.TaskID, args ...interface{}) string {
-	return fmt.Sprintf(format+"%s", append(args, key.Uuid)...)
+// idKey converts a key prefix to full status / task key
+func idKey(prefix string, key *api.TaskID) string {
+	return fmt.Sprintf(prefix+"%s", key.Uuid)
 }
 
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
