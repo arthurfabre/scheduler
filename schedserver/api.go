@@ -18,7 +18,7 @@ type taskServiceServer struct {
 func (s *taskServiceServer) Submit(ctx context.Context, req *api.TaskRequest) (*api.TaskID, error) {
 	task := newTask(req)
 
-	err := task.queue(s.client, ctx)
+	err := task.queue(ctx, s.client)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func (s *taskServiceServer) Submit(ctx context.Context, req *api.TaskRequest) (*
 }
 
 func (s *taskServiceServer) Status(ctx context.Context, id *api.TaskID) (*api.TaskStatus, error) {
-	task, err := getTask(s.client, ctx, id)
+	task, err := getTask(ctx, s.client, id)
 	if err != nil {
 		return nil, err
 	}
@@ -36,12 +36,12 @@ func (s *taskServiceServer) Status(ctx context.Context, id *api.TaskID) (*api.Ta
 }
 
 func (s *taskServiceServer) Cancel(ctx context.Context, id *api.TaskID) (*api.Empty, error) {
-	task, err := getTask(s.client, ctx, id)
+	task, err := getTask(ctx, s.client, id)
 	if err != nil {
 		return nil, err
 	}
 
-	err = task.cancel(s.client, ctx)
+	err = task.cancel(ctx, s.client)
 	if err != nil {
 		return nil, err
 	}

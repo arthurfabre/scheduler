@@ -40,14 +40,14 @@ type Task struct {
 
 // watchQueuedTasks returns a Channel of Tasks that have just been queued
 // TODO - Potentially expose DELETE events, so we can backoff before stealing tasks
-func watchQueuedTasks(client *clientv3.Client, ctx context.Context) <-chan *Task {
+func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan *Task {
 	out := make(chan *Task)
 
 	// TODO - Are we cleaning things up properly?
 	go func() {
 		for resp := range client.Watch(ctx, queuedFmt, clientv3.WithPrefix(), clientv3.WithFilterDelete()) {
 			for _, ev := range resp.Events {
-				task, err := getTask(client, ctx, keyID(string(ev.Kv.Key)))
+				task, err := getTask(ctx, client, keyID(string(ev.Kv.Key)))
 				if err != nil {
 					continue
 				}
@@ -61,10 +61,10 @@ func watchQueuedTasks(client *clientv3.Client, ctx context.Context) <-chan *Task
 }
 
 // listDoneTasks returns a list of Tasks that were done (completed or canceled) at least age seconds ago.
-func listDoneTasks(client *clientv3.Client, ctx context.Context, age int64) ([]*Task, error) {
+func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]*Task, error) {
 	list := func(preFmt string) ([]*Task, error) {
 		// Get everything from epoch 0 to (Now - age)
-		return listTasks(client, ctx, fmt.Sprintf(preFmt, 0), clientv3.WithRange(fmt.Sprintf(preFmt, time.Now().Unix())))
+		return listTasks(ctx, client, fmt.Sprintf(preFmt, 0), clientv3.WithRange(fmt.Sprintf(preFmt, time.Now().Unix())))
 	}
 
 	co, err := list(completeFmt)
@@ -81,12 +81,12 @@ func listDoneTasks(client *clientv3.Client, ctx context.Context, age int64) ([]*
 }
 
 // listNodeTasks returns a list of Tasks that are being run by nodeId.
-func listNodeTasks(client *clientv3.Client, ctx context.Context, nodeId *api.NodeID) ([]*Task, error) {
-	return listTasks(client, ctx, fmt.Sprintf(runningFmt, nodeId.Uuid), clientv3.WithPrefix())
+func listNodeTasks(ctx context.Context, client *clientv3.Client, nodeId *api.NodeID) ([]*Task, error) {
+	return listTasks(ctx, client, fmt.Sprintf(runningFmt, nodeId.Uuid), clientv3.WithPrefix())
 }
 
 // listTasks returns a list of Tasks using etcd GET(key, opts...). Intended to be used with status keys.
-func listTasks(client *clientv3.Client, ctx context.Context, key string, opts ...clientv3.OpOption) ([]*Task, error) {
+func listTasks(ctx context.Context, client *clientv3.Client, key string, opts ...clientv3.OpOption) ([]*Task, error) {
 	resp, err := client.Get(ctx, key, opts...)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func listTasks(client *clientv3.Client, ctx context.Context, key string, opts ..
 	tasks := make([]*Task, 0, resp.Count)
 
 	for _, t := range resp.Kvs {
-		task, err := getTask(client, ctx, keyID(string(t.Key)))
+		task, err := getTask(ctx, client, keyID(string(t.Key)))
 		if err != nil {
 			continue
 		}
@@ -115,7 +115,7 @@ func newTask(req *api.TaskRequest) *Task {
 }
 
 // getTask retrieves a Task from etcd.
-func getTask(client *clientv3.Client, ctx context.Context, id *api.TaskID) (*Task, error) {
+func getTask(ctx context.Context, client *clientv3.Client, id *api.TaskID) (*Task, error) {
 	key := taskKey(id)
 
 	resp, err := client.Get(ctx, key)
@@ -180,7 +180,7 @@ func idKey(format string, key *api.TaskID, args ...interface{}) string {
 }
 
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
-func (t *Task) setStatus(client *clientv3.Client, ctx context.Context, newStatus *api.TaskStatus) (err error) {
+func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus *api.TaskStatus) (err error) {
 	// Preserve old status to know which old key to delete
 	oldStatus := t.Status
 	t.Status = newStatus
@@ -237,21 +237,21 @@ func (t *Task) setStatus(client *clientv3.Client, ctx context.Context, newStatus
 }
 
 // queue marks the Task as "queued" in etcd.
-func (t *Task) queue(client *clientv3.Client, ctx context.Context) error {
-	return t.setStatus(client, ctx, &api.TaskStatus{&api.TaskStatus_Queued_{&api.TaskStatus_Queued{}}})
+func (t *Task) queue(ctx context.Context, client *clientv3.Client) error {
+	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Queued_{&api.TaskStatus_Queued{}}})
 }
 
 // run marks the Task as "running" on nodeID in etcd.
-func (t *Task) run(client *clientv3.Client, ctx context.Context, nodeID *api.NodeID) error {
-	return t.setStatus(client, ctx, &api.TaskStatus{&api.TaskStatus_Running_{&api.TaskStatus_Running{nodeID}}})
+func (t *Task) run(ctx context.Context, client *clientv3.Client, nodeID *api.NodeID) error {
+	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Running_{&api.TaskStatus_Running{nodeID}}})
 }
 
 // complete marks the Task as "complete" on nodeID, with exitCode, as of now, in etcd.
-func (t *Task) complete(client *clientv3.Client, ctx context.Context, nodeID *api.NodeID, exitCode int) error {
-	return t.setStatus(client, ctx, &api.TaskStatus{&api.TaskStatus_Complete_{&api.TaskStatus_Complete{nodeID, int32(exitCode), time.Now().Unix()}}})
+func (t *Task) complete(ctx context.Context, client *clientv3.Client, nodeID *api.NodeID, exitCode int) error {
+	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Complete_{&api.TaskStatus_Complete{nodeID, int32(exitCode), time.Now().Unix()}}})
 }
 
 // cancel marks the Task as "canceled" as of now, in etcd.
-func (t *Task) cancel(client *clientv3.Client, ctx context.Context) error {
-	return t.setStatus(client, ctx, &api.TaskStatus{&api.TaskStatus_Canceled_{&api.TaskStatus_Canceled{time.Now().Unix()}}})
+func (t *Task) cancel(ctx context.Context, client *clientv3.Client) error {
+	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Canceled_{&api.TaskStatus_Canceled{time.Now().Unix()}}})
 }
