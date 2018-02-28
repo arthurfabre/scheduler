@@ -18,9 +18,14 @@ message NodeID {
     string uuid = 1;
 
     /**
-     * Public URL(s) on which the node is listening for API requests.
+     * IP the node can be reached at.
      */
-    repeated string url = 2;
+    string ip = 2;
+
+    /**
+     * Port the node can be reached at.
+     */
+    int32 port = 3;
 }
 
 /**
