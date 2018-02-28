@@ -123,7 +123,7 @@ func getTask(ctx context.Context, client *clientv3.Client, id *api.TaskID) (*Tas
 	}
 
 	// We're not searching for a range or prefix
-	if resp.Count != 1 {
+	if len(resp.Kvs) != 1 {
 		return nil, fmt.Errorf("Too many matching keys, found %d", resp.Count)
 	}
 
