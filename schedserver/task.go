@@ -64,17 +64,17 @@ func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]*
 	// Get everything from epoch 0 to (Now - age)
 	end := time.Now().Unix() - age
 
-	co, err := listTasks(ctx, client, completePrefix(0), clientv3.WithRange(completePrefix(end)))
+	completed, err := listTasks(ctx, client, completePrefix(0), clientv3.WithRange(completePrefix(end)))
 	if err != nil {
 		return nil, err
 	}
 
-	ca, err := listTasks(ctx, client, canceledPrefix(0), clientv3.WithRange(canceledPrefix(end)))
+	canceled, err := listTasks(ctx, client, canceledPrefix(0), clientv3.WithRange(canceledPrefix(end)))
 	if err != nil {
 		return nil, err
 	}
 
-	return append(co, ca...), nil
+	return append(completed, canceled...), nil
 }
 
 // listNodeTasks returns a list of Tasks that are being run by nodeId.
