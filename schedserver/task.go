@@ -48,6 +48,7 @@ func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan *Task
 			for _, ev := range resp.Events {
 				task, err := getTask(ctx, client, keyID(string(ev.Kv.Key)))
 				if err != nil {
+					log.Println("Error retrieving task", ev.Kv.Key)
 					continue
 				}
 
@@ -94,6 +95,7 @@ func listTasks(ctx context.Context, client *clientv3.Client, key string, opts ..
 	for _, t := range resp.Kvs {
 		task, err := getTask(ctx, client, keyID(string(t.Key)))
 		if err != nil {
+			log.Println("Error retrieving task", t.Key)
 			continue
 		}
 
