@@ -46,7 +46,7 @@ func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan *Task
 	go func() {
 		for resp := range client.Watch(ctx, queuedPrefix(), clientv3.WithPrefix(), clientv3.WithFilterDelete()) {
 			for _, ev := range resp.Events {
-				task, err := getTask(ctx, client, keyID(string(ev.Kv.Key)))
+				task, err := getTask(ctx, client, taskID(string(ev.Kv.Key)))
 				if err != nil {
 					log.Println("Error retrieving task", ev.Kv.Key)
 					continue
@@ -93,7 +93,7 @@ func listTasks(ctx context.Context, client *clientv3.Client, key string, opts ..
 	tasks := make([]*Task, 0, resp.Count)
 
 	for _, t := range resp.Kvs {
-		task, err := getTask(ctx, client, keyID(string(t.Key)))
+		task, err := getTask(ctx, client, taskID(string(t.Key)))
 		if err != nil {
 			log.Println("Error retrieving task", t.Key)
 			continue
@@ -186,8 +186,8 @@ func (t *Task) statusKey(status *api.TaskStatus) string {
 	return idKey(prefix, t.Id)
 }
 
-// keyID converts a status / task key, to a TaskID
-func keyID(key string) *api.TaskID {
+// taskID converts a status / task key, to a TaskID
+func taskID(key string) *api.TaskID {
 	s := strings.Split(key, "/")
 	return &api.TaskID{Uuid: s[len(s)-1]}
 }
