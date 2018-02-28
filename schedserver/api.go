@@ -57,8 +57,8 @@ func (s *taskServiceServer) Logs(id *api.TaskID, stream api.TaskService_LogsServ
 	return nil
 }
 
-func (s *taskServiceServer) Start(port int) {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+func (s *taskServiceServer) Start(ip string, port uint16) {
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ip, port))
 	if err != nil {
 		log.Fatalln("Failed to listen on port %d", port, err)
 	}

@@ -1,30 +1,47 @@
 package schedserver
 
 import (
-	//"flag"
 	"fmt"
-	"log"
-	//"github.com/opencontainers/runc/libcontainer"
 	"github.com/coreos/etcd/clientv3"
+	"github.com/jessevdk/go-flags"
+	"log"
+	"os"
 	"time"
 )
 
-const (
-	// apiPort is the port for the gRPC task submission API
-	apiPort = 8080
-	// etcdClientPort is the port for the etcd KV API
-	etcdClientPort = 2379
-	// etcdClusterPort is the port for inter-cluster etcd comms
-	etcdClusterPort = 2380
-)
+var opts struct {
+	Args struct {
+		Ip string `description:"Public IP to bind"`
+	} `positional-args:"true" required:"true"`
+
+	ApiPort uint16 `short:"a" long:"api-port" default:"8080" description:"gRPC task API port"`
+
+	EtcdClientPort uint16 `short:"c" long:"client-port" default:"2379" description:"etcd client port"`
+
+	EtcdPeerPort uint16 `short:"p" long:"peer-port" default:"2380" description:"etcd peer port"`
+
+	//TODO
+	// new cluster
+	// join cluster
+	// cluster members
+}
 
 func Main() {
-	// TODO - CMD line parsing
+	if _, err := flags.Parse(&opts); err != nil {
+		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
+			os.Exit(0)
+		} else {
+			os.Exit(1)
+		}
+	}
 
-	go startEtcd()
+	go startEtcd(opts.Args.Ip, opts.EtcdClientPort, opts.EtcdPeerPort)
 
+	id := nodeID(opts.Args.Ip, opts.ApiPort)
+
+	// TODO - Make etcd() return the EndPoint
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{fmt.Sprintf("http://localhost:%d", etcdClientPort)},
+		Endpoints:   []string{fmt.Sprintf("http://localhost:%d", opts.EtcdClientPort)},
 		DialTimeout: 2 * time.Second,
 	})
 	if err != nil {
@@ -32,14 +49,13 @@ func Main() {
 	}
 
 	taskServer := taskServiceServer{cli}
-	go taskServer.Start(apiPort)
+	go taskServer.Start(opts.Args.Ip, opts.ApiPort)
+
+	runner := Runner{cli, id}
+	go runner.Start()
 
 	// TODO - Hacky AF
 	for {
 		time.Sleep(1 * time.Second)
 	}
-	// startMaintainer()
-	// startRunner()
-	// runner watches /status/queued for new tasks
-	// runner watches tasks we've completed until they're deleted by the maintainer
 }
