@@ -64,5 +64,6 @@ func (s *taskServiceServer) Start(ip string, port uint16) {
 	}
 
 	grpcServer := grpc.NewServer()
+	api.RegisterTaskServiceServer(grpcServer, s)
 	grpcServer.Serve(lis)
 }
