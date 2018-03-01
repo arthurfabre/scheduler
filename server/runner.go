@@ -1,10 +1,10 @@
-package schedserver
+package main
 
 import (
 	"context"
 	"log"
 	//"github.com/opencontainers/runc/libcontainer" TODO
-	api "github.com/arthurfabre/scheduler/schedapi"
+	"github.com/arthurfabre/scheduler/api"
 	"github.com/coreos/etcd/clientv3"
 	"time"
 )

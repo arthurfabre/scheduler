@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	api "github.com/arthurfabre/scheduler/schedapi"
+	"github.com/arthurfabre/scheduler/api"
 	"github.com/jessevdk/go-flags"
 	"google.golang.org/grpc"
 	"log"

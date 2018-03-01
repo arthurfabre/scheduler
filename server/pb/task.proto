@@ -1,0 +1,12 @@
+syntax = "proto3";
+package pb;
+
+import "api/api.proto";
+
+// Internal representation of a task
+// Stored in etcd
+message Task {
+    api.TaskRequest request = 1;
+    api.TaskStatus status = 2;
+    api.TaskID id = 3;
+}

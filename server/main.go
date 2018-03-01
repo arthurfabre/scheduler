@@ -1,4 +1,4 @@
-package schedserver
+package main
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ var opts struct {
 	NewCluster bool `short:"n" long:"new-cluster" description:"Start a new cluster (instead of joining an existing one)"`
 }
 
-func Main() {
+func main() {
 	if _, err := flags.Parse(&opts); err != nil {
 		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)

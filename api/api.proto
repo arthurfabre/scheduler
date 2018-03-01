@@ -1,5 +1,5 @@
 syntax = "proto3";
-package schedapi;
+package api;
 
 /**
  * Unique idenitifer for a Task

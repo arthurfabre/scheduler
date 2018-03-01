@@ -1,11 +1,11 @@
-package schedserver
+package main
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	api "github.com/arthurfabre/scheduler/schedapi"
-	"github.com/arthurfabre/scheduler/schedserver/pb"
+	"github.com/arthurfabre/scheduler/api"
+	"github.com/arthurfabre/scheduler/server/pb"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/clientv3util"
 	"github.com/golang/protobuf/proto"

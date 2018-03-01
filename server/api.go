@@ -1,10 +1,10 @@
 // API server implementation
-package schedserver
+package main
 
 import (
 	"context"
 	"fmt"
-	api "github.com/arthurfabre/scheduler/schedapi"
+	"github.com/arthurfabre/scheduler/api"
 	"github.com/coreos/etcd/clientv3"
 	"google.golang.org/grpc"
 	"log"

@@ -1,5 +1,5 @@
 // ETCD server interface
-package schedserver
+package main
 
 import (
 	"fmt"

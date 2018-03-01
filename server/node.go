@@ -1,7 +1,7 @@
-package schedserver
+package main
 
 import (
-	api "github.com/arthurfabre/scheduler/schedapi"
+	"github.com/arthurfabre/scheduler/api"
 	"github.com/satori/go.uuid"
 )
 
