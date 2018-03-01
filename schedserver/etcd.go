@@ -6,6 +6,7 @@ import (
 	"github.com/coreos/etcd/embed"
 	"log"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -16,20 +17,29 @@ func URL(ip string, port uint16) []url.URL {
 	return []url.URL{*parsed}
 }
 
-func startEtcd(ip string, clientPort uint16, peerPort uint16) {
+func startEtcd(name string, ip string, clientPort uint16, peerPort uint16, dataDir string, nodes []string, newCluster bool) {
 	cfg := embed.NewConfig()
 
-	// TODO - Is this sane?
-	cfg.Dir = "default.etcd"
+	cfg.Name = name
+	cfg.Dir = dataDir
 
 	// Other etcd servers
 	cfg.LPUrls = URL(ip, peerPort)
 	// Client
 	cfg.LCUrls = URL(ip, clientPort)
 
-	// We only bing the public IP, advertise that
+	// We only bind the public IP, advertise that
 	cfg.APUrls = cfg.LPUrls
 	cfg.ACUrls = cfg.LCUrls
+
+	// Cluster includes ourselves and the other nodes
+	cfg.InitialCluster = strings.Join(append(nodes, cfg.InitialClusterFromName(cfg.Name)), ",")
+
+	if newCluster {
+		cfg.ClusterState = embed.ClusterStateFlagNew
+	} else {
+		cfg.ClusterState = embed.ClusterStateFlagExisting
+	}
 
 	// We only use v3
 	cfg.EnableV2 = false

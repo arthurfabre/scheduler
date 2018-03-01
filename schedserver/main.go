@@ -11,7 +11,8 @@ import (
 
 var opts struct {
 	Args struct {
-		Ip string `description:"Public IP to bind"`
+		Ip   string `description:"Public IP to bind"`
+		Name string `description:"Unique node name"`
 	} `positional-args:"true" required:"true"`
 
 	ApiPort uint16 `short:"a" long:"api-port" default:"8080" description:"gRPC task API port"`
@@ -20,10 +21,11 @@ var opts struct {
 
 	EtcdPeerPort uint16 `short:"p" long:"peer-port" default:"2380" description:"etcd peer port"`
 
-	//TODO
-	// new cluster
-	// join cluster
-	// cluster members
+	EtcdDataDir string `short:"d" long:"data-dir" default:"default.etcd" description:"etcd data directory"`
+
+	Nodes []string `short:"N" long:"node" description:"Other nodes of the cluster to create or join"`
+
+	NewCluster bool `short:"n" long:"new-cluster" description:"Start a new cluster (instead of joining an existing one)"`
 }
 
 func Main() {
@@ -35,13 +37,12 @@ func Main() {
 		}
 	}
 
-	go startEtcd(opts.Args.Ip, opts.EtcdClientPort, opts.EtcdPeerPort)
-
 	id := nodeID(opts.Args.Ip, opts.ApiPort)
 
-	// TODO - Make etcd() return the EndPoint
+	go startEtcd(opts.Args.Name, opts.Args.Ip, opts.EtcdClientPort, opts.EtcdPeerPort, opts.EtcdDataDir, opts.Nodes, opts.NewCluster)
+
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{fmt.Sprintf("http://localhost:%d", opts.EtcdClientPort)},
+		Endpoints:   []string{fmt.Sprintf("http://%s:%d", opts.Args.Ip, opts.EtcdClientPort)},
 		DialTimeout: 2 * time.Second,
 	})
 	if err != nil {
