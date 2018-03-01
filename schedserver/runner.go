@@ -27,8 +27,11 @@ func (r *Runner) Start() {
 
 		// TODO - Actually run it
 		go func() {
+			runningTask := task
 			time.Sleep(10 * time.Second)
-			task.complete(context.Background(), r.client, r.id, 0)
+			if err := runningTask.complete(context.Background(), r.client, r.id, 0); err != nil {
+				log.Println("Error completing task", err)
+			}
 		}()
 	}
 }
