@@ -33,18 +33,38 @@ type Task struct {
 	// Version in etcd when this was last updated / retrieved
 	version int64
 
+	// modRevision is the Etcd revision when this was last modified, as of when this was last updated / retrieved
+	modRevision int64
+
 	// Key in etcd
 	key string
 }
 
 // watchQueuedTasks returns a Channel of Tasks that have just been queued
-// TODO - Potentially expose DELETE events, so we can backoff before stealing tasks
 func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan *Task {
+	return watchTasks(ctx, client, queuedPrefix(), clientv3.WithPrefix())
+}
+
+// watch returns a Channel of updates to this Task since this task was last updated / retrieved
+func (t *Task) watch(ctx context.Context, client *clientv3.Client) <-chan *Task {
+	// Revision + 1 so we don't get the last modification we're aware of, but the next
+	return watchTasks(ctx, client, t.key, clientv3.WithRev(t.modRevision + 1))
+}
+
+// watchTasks returns a Channel of Tasks using etcd WATCH(key, FilterDelete(), opts...)
+// TODO - Expose errors and delete with <-chan WatchResponse{Task, Error, bool delete}
+func watchTasks(ctx context.Context, client *clientv3.Client, key string, opts ...clientv3.OpOption) <-chan *Task {
 	out := make(chan *Task)
 
-	// TODO - Are we cleaning things up properly?
 	go func() {
-		for resp := range client.Watch(ctx, queuedPrefix(), clientv3.WithPrefix(), clientv3.WithFilterDelete()) {
+		defer close(out)
+
+		for resp := range client.Watch(ctx, key, append(opts, clientv3.WithFilterDelete())...) {
+			if resp.Err() != nil {
+				log.Println("Task watch error:", resp.Err())
+				return
+			}
+
 			for _, ev := range resp.Events {
 				task, err := getTask(ctx, client, taskID(string(ev.Kv.Key)))
 				if err != nil {
@@ -127,8 +147,9 @@ func getTask(ctx context.Context, client *clientv3.Client, id *api.TaskID) (*Tas
 		return nil, fmt.Errorf("Too many matching keys, found %d", resp.Count)
 	}
 
-	task := &Task{version: resp.Kvs[0].Version, key: key, Task: &pb.Task{}}
-	if err := proto.Unmarshal([]byte(resp.Kvs[0].Value), task.Task); err != nil {
+	t := resp.Kvs[0]
+	task := &Task{version: t.Version, modRevision: t.ModRevision, key: key, Task: &pb.Task{}}
+	if err := proto.Unmarshal([]byte(t.Value), task.Task); err != nil {
 		return nil, err
 	}
 
@@ -221,6 +242,7 @@ func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus
 
 	// We always need to update the task and its status key
 	thens := []clientv3.Op{
+		// Don't reorder without fixing how to get modRevision!
 		clientv3.OpPut(t.key, string(data)),
 		clientv3.OpPut(t.statusKey(newStatus), ""),
 	}
@@ -252,6 +274,9 @@ func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus
 
 	// Feels hacky, but PutResponse doesn't include the new version
 	t.version++
+
+	// TXN count as one revision, doesn't matter which of resp.Responses() we look at.
+	t.modRevision = resp.Header.Revision
 
 	return nil
 }
