@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/arthurfabre/scheduler/api"
 	"github.com/coreos/etcd/clientv3"
@@ -54,6 +55,10 @@ func main() {
 
 	id := nodeID(opts.Args.Ip, opts.ApiPort)
 
+	// TODO - use rootCancel()?
+	rootCtx, _ := context.WithCancel(context.Background())
+
+	// TODO - Pass rootCtx
 	go startEtcd(opts.Args.Name, opts.Args.Ip, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster)
 
 	cli, err := clientv3.New(clientv3.Config{
@@ -68,7 +73,7 @@ func main() {
 	go taskServer.Start(opts.Args.Ip, opts.ApiPort)
 
 	runner := Runner{cli, id}
-	go runner.Start(filepath.Join(opts.DataDir, containerDir), opts.RootFs)
+	go runner.Start(rootCtx, filepath.Join(opts.DataDir, containerDir), opts.RootFs)
 
 	// TODO - Hacky AF
 	for {

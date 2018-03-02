@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/arthurfabre/scheduler/api"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/opencontainers/runc/libcontainer"
@@ -29,8 +30,7 @@ func init() {
 	}
 }
 
-var defaultMountFlags = unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_NODEV
-
+// config creates a libcontainer config for a given rootDs and cgroupName
 func config(rootFs string, cgroupName string) *configs.Config {
 	defaultMountFlags := syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_NODEV
 
@@ -163,6 +163,7 @@ func config(rootFs string, cgroupName string) *configs.Config {
 	}
 }
 
+// process creates a libcontainer Process from a Task
 func process(task *Task) (*libcontainer.Process, error) {
 	log, err := os.Create(getLog(task.Id))
 	if err != nil {
@@ -184,7 +185,83 @@ type Runner struct {
 	id     *api.NodeID
 }
 
-func (r *Runner) Start(containerDir string, rootFs string) {
+// watchCancel watches a Task for cancellation, killing process when it is.
+// True is written to returned channel IFF the task is cancelled
+func (r *Runner) watchCancel(task *Task, process *libcontainer.Process, ctx context.Context) <-chan bool {
+	cancel := make(chan bool)
+
+	// Watch for the task to be canceled.
+	go func() {
+		defer close(cancel)
+
+		for taskUpdate := range task.watch(ctx, r.client) {
+			switch taskUpdate.Status.Status.(type) {
+			case *api.TaskStatus_Canceled_:
+				// Only expected status change
+			default:
+				log.Println("WARN: Unepexcted modifiction of Task while running:", taskUpdate)
+			}
+
+			process.Signal(os.Kill)
+			cancel <- true
+		}
+	}()
+
+	return cancel
+}
+
+// run executes a Task in a container. Error indicates task was not able to be run.
+func (r *Runner) run(ctx context.Context, task *Task, factory libcontainer.Factory, cfg *configs.Config) error {
+	container, err := factory.Create(task.Id.Uuid, cfg)
+	if err != nil {
+		return fmt.Errorf("Error creating container: %s", err)
+	}
+	defer container.Destroy()
+
+	taskProcess, err := process(task)
+	if err != nil {
+		return fmt.Errorf("Error creating task process: %s", err)
+	}
+
+	// cancelCancel cancels the context used for task cancelation watching
+	cancelCtx, cancelCancel := context.WithCancel(ctx)
+	cancel := r.watchCancel(task, taskProcess, cancelCtx)
+	defer cancelCancel()
+
+	err = container.Run(taskProcess)
+	if err != nil {
+		return fmt.Errorf("Error running task process: %s", err)
+	}
+
+	taskState, waitErr := taskProcess.Wait()
+	cancelCancel()
+
+	select {
+	// Task was cancelled, ignore waitErr as it's caused by kill()
+	case <-cancel:
+		return nil
+
+	// Task finished normally
+	default:
+		if waitErr != nil {
+			return fmt.Errorf("Error waiting for task process: %s", waitErr)
+		}
+
+		taskStatus, ok := taskState.Sys().(syscall.WaitStatus)
+		if !ok {
+			return fmt.Errorf("Error getting task process exit code")
+		}
+
+		err = task.complete(context.Background(), r.client, r.id, taskStatus.ExitStatus())
+		if err != nil {
+			return fmt.Errorf("Error completing task: %s", err)
+		}
+
+		return nil
+	}
+}
+
+func (r *Runner) Start(ctx context.Context, containerDir string, rootFs string) {
 	rootFs, err := filepath.Abs(rootFs)
 	if err != nil {
 		log.Fatalln("Error getting absolute rootfs path", err)
@@ -198,52 +275,27 @@ func (r *Runner) Start(containerDir string, rootFs string) {
 	// TODO - What does cgroupName do?
 	cfg := config(rootFs, "test")
 
-	newTasks := watchQueuedTasks(context.Background(), r.client)
+	newTasks := watchQueuedTasks(ctx, r.client)
 
 	for task := range newTasks {
-		if err := task.run(context.Background(), r.client, r.id); err != nil {
+		if err := task.run(ctx, r.client, r.id); err != nil {
 			// TODO - Differentiate stolen task from other errors
 			continue
 		}
 
 		log.Println("Running task", task.Id.Uuid)
 
-		// TODO - Should the task be requeued on errors?
-		go func(runningTask *Task) {
-			container, err := factory.Create(task.Id.Uuid, cfg)
-			if err != nil {
-				log.Println("Error creating container", err)
-				return
-			}
-			defer container.Destroy()
-
-			taskProcess, err := process(runningTask)
-			if err != nil {
-				log.Println("Error creating task process", err)
+		go func(task *Task) {
+			err := r.run(ctx, task, factory, cfg)
+			if err == nil {
 				return
 			}
 
-			err = container.Run(taskProcess)
+			log.Println("Error running task, re-queuing: %s", err)
+			err = task.queue(ctx, r.client)
 			if err != nil {
-				log.Println("Error running task", err)
-				return
-			}
-
-			taskState, err := taskProcess.Wait()
-			if err != nil {
-				log.Println("Error waiting for task", err)
-				return
-			}
-
-			taskStatus, ok := taskState.Sys().(syscall.WaitStatus)
-			if !ok {
-				log.Println("Error gettign task exit code", err)
-			}
-
-			err = runningTask.complete(context.Background(), r.client, r.id, taskStatus.ExitStatus())
-			if err != nil {
-				log.Println("Error completing task", err)
-				return
+				// Not much we can do at this point...
+				log.Println("Error re-queuing failed task: %s", err)
 			}
 		}(task)
 	}
