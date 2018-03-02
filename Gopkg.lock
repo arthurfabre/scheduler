@@ -8,6 +8,12 @@
   revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/containerd/console"
+  packages = ["."]
+  revision = "2748ece16665b45a47f884001d5831ec79703880"
+
+[[projects]]
   name = "github.com/coreos/bbolt"
   packages = ["."]
   revision = "48ea1b39c25fc1bab3506fbc712ecbaa842c4d2d"
@@ -96,21 +102,40 @@
 
 [[projects]]
   name = "github.com/coreos/go-systemd"
-  packages = ["journal"]
+  packages = [
+    "dbus",
+    "journal",
+    "util"
+  ]
   revision = "40e2722dffead74698ca12a750f64ef313ddce05"
   version = "v16"
 
 [[projects]]
   name = "github.com/coreos/pkg"
-  packages = ["capnslog"]
+  packages = [
+    "capnslog",
+    "dlopen"
+  ]
   revision = "3ac0863d7acf3bc44daf49afef8919af12f704ef"
   version = "v3"
+
+[[projects]]
+  name = "github.com/cyphar/filepath-securejoin"
+  packages = ["."]
+  revision = "06bda8370f45268db985f7af15732444d94ed51c"
+  version = "v0.2.1"
 
 [[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
   revision = "dbeaa9332f19a944acb5736b4456cfcc02140e29"
   version = "v3.1.0"
+
+[[projects]]
+  name = "github.com/docker/go-units"
+  packages = ["."]
+  revision = "0dadbb0345b35ec7ef35e228dabb8de89a65bf52"
+  version = "v0.3.2"
 
 [[projects]]
   branch = "master"
@@ -123,6 +148,12 @@
   packages = ["."]
   revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
   version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/godbus/dbus"
+  packages = ["."]
+  revision = "a389bdde4dd695d414e47b755e95e72b7826432c"
+  version = "v4.1.0"
 
 [[projects]]
   name = "github.com/gogo/protobuf"
@@ -196,9 +227,60 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/mrunalp/fileutils"
+  packages = ["."]
+  revision = "7d4729fb36185a7c1719923406c9d40e54fb93c7"
+
+[[projects]]
+  name = "github.com/opencontainers/runc"
+  packages = [
+    "libcontainer",
+    "libcontainer/apparmor",
+    "libcontainer/cgroups",
+    "libcontainer/cgroups/fs",
+    "libcontainer/cgroups/systemd",
+    "libcontainer/configs",
+    "libcontainer/configs/validate",
+    "libcontainer/criurpc",
+    "libcontainer/intelrdt",
+    "libcontainer/keys",
+    "libcontainer/mount",
+    "libcontainer/nsenter",
+    "libcontainer/seccomp",
+    "libcontainer/stacktrace",
+    "libcontainer/system",
+    "libcontainer/user",
+    "libcontainer/utils"
+  ]
+  revision = "4fc53a81fb7c994640722ac585fa9ca548971871"
+  version = "v1.0.0-rc5"
+
+[[projects]]
+  name = "github.com/opencontainers/runtime-spec"
+  packages = ["specs-go"]
+  revision = "4e3b9264a330d094b0386c3703c5f379119711e8"
+  version = "v1.0.1"
+
+[[projects]]
+  name = "github.com/opencontainers/selinux"
+  packages = [
+    "go-selinux",
+    "go-selinux/label"
+  ]
+  revision = "ba1aefe8057f1d0cfb8e88d0ec1dc85925ef987d"
+  version = "v1.0.0-rc1"
+
+[[projects]]
+  branch = "master"
   name = "github.com/petar/GoLLRB"
   packages = ["llrb"]
   revision = "53be0d36a84c2a886ca057d34b6aa4468df9ccb4"
+
+[[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   name = "github.com/prometheus/client_golang"
@@ -243,6 +325,12 @@
   version = "v1.2.0"
 
 [[projects]]
+  name = "github.com/seccomp/libseccomp-golang"
+  packages = ["."]
+  revision = "e3496e3a417d1dc9ecdceca5af2513271fed37a0"
+  version = "v0.9.0"
+
+[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "d682213848ed68c0a260ca37d6dd5ace8423f5ba"
@@ -256,6 +344,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/syndtr/gocapability"
+  packages = ["capability"]
+  revision = "33e07d32887e1e06b7c025f27ce52f62c7990bc0"
+
+[[projects]]
+  branch = "master"
   name = "github.com/tmc/grpc-websocket-proxy"
   packages = ["wsproxy"]
   revision = "830351dc03c6f07d625727d5f993a463babb20e1"
@@ -265,6 +359,21 @@
   packages = ["codec"]
   revision = "9831f2c3ac1068a78f50999a30db84270f647af6"
   version = "v1.1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/vishvananda/netlink"
+  packages = [
+    ".",
+    "nl"
+  ]
+  revision = "5236321576c0c97ab02c078e60f9b1c5c1828807"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/vishvananda/netns"
+  packages = ["."]
+  revision = "be1fbeda19366dea804f00efff2dd73a1642fdcc"
 
 [[projects]]
   name = "github.com/xiang90/probing"
@@ -379,6 +488,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9574bd9fa9302aaff123cefa5ba2e3b2c9f9ce1c5d23a5d4b074f026756c7317"
+  inputs-digest = "9d09b30ae29c6d49e69418a3e9ee4a1f4c18d8e6d128cabe1dd96e0d9eaef67b"
   solver-name = "gps-cdcl"
   solver-version = 1
