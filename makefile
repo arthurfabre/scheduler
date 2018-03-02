@@ -2,6 +2,7 @@
 PROTOC:=protoc
 GO_PROTOC_FLAGS:=
 GO:=go
+DEP:=dep
 
 # Single comma
 COMMA:=,
@@ -34,9 +35,14 @@ server/pb/task.pb.go: GO_PROTOC_FLAGS+= Mapi/api.proto=github.com/arthurfabre/sc
 .PHONY:all
 all: $(CLIENT) $(SERVER)
 
-%.elf:
+# Build package into executable
+%.elf: vendor/
 	$(GO) fmt ./$(DIR)...
 	$(GO) build -o $@ ./$(DIR)
+
+# Fetch dependencies with dep
+vendor/: Gopkg.lock Gopkg.toml
+	$(DEP) ensure
 
 # Compile proto definition
 %.pb.go: %.proto
