@@ -17,7 +17,7 @@
 * `$GOPATH/bin` in `$PATH` if `go get` is used to install `dep` or `protoc-gen-go`
 
 * Suitable rootfs for running a container
-    * On debian based systems `debootstrap stretch rootfs/ http://ftp.us.debian.org/debian/`
+    * With `docker`: `docker export $(docker create busybox) | tar -C rootfs/ -xvf -`
 
 ## Build
 
