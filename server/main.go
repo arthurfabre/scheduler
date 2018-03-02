@@ -6,7 +6,14 @@ import (
 	"github.com/jessevdk/go-flags"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
+)
+
+const (
+	// Subdirectories of our data dir
+	etcdDir      = "etcd"
+	containerDir = "container"
 )
 
 var opts struct {
@@ -21,11 +28,13 @@ var opts struct {
 
 	EtcdPeerPort uint16 `short:"p" long:"peer-port" default:"2380" description:"etcd peer port"`
 
-	EtcdDataDir string `short:"d" long:"data-dir" default:"default.etcd" description:"etcd data directory"`
+	DataDir string `short:"d" long:"data-dir" default:"default.etcd" description:"data directory for containers and etcd"`
 
 	Nodes []string `short:"N" long:"node" description:"Other nodes of the cluster to create or join"`
 
 	NewCluster bool `short:"n" long:"new-cluster" description:"Start a new cluster (instead of joining an existing one)"`
+
+	RootFs string `short:"r" long:"root-fs" description:"RootFS used to run tasks in"`
 }
 
 func main() {
@@ -39,7 +48,7 @@ func main() {
 
 	id := nodeID(opts.Args.Ip, opts.ApiPort)
 
-	go startEtcd(opts.Args.Name, opts.Args.Ip, opts.EtcdClientPort, opts.EtcdPeerPort, opts.EtcdDataDir, opts.Nodes, opts.NewCluster)
+	go startEtcd(opts.Args.Name, opts.Args.Ip, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster)
 
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{fmt.Sprintf("http://%s:%d", opts.Args.Ip, opts.EtcdClientPort)},
@@ -49,11 +58,11 @@ func main() {
 		log.Fatalln("Error connecting to local etcd:", err)
 	}
 
-	taskServer := taskServiceServer{cli}
+	taskServer := taskServiceServer{cli, id}
 	go taskServer.Start(opts.Args.Ip, opts.ApiPort)
 
 	runner := Runner{cli, id}
-	go runner.Start()
+	go runner.Start(filepath.Join(opts.DataDir, containerDir), opts.RootFs)
 
 	// TODO - Hacky AF
 	for {
