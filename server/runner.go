@@ -163,16 +163,20 @@ func config(rootFs string, cgroupName string) *configs.Config {
 	}
 }
 
-func process(task *Task) *libcontainer.Process {
-	// TODO - Redirect stdout and stderr to a file
+func process(task *Task) (*libcontainer.Process, error) {
+	log, err := os.Create(getLog(task.Id))
+	if err != nil {
+		return nil, err
+	}
+
 	return &libcontainer.Process{
 		Args:   append([]string{task.Request.Command}, task.Request.Args...),
 		Env:    []string{"PATH=/bin"},
 		User:   "root",
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}
+		Stdin:  nil,
+		Stdout: log,
+		Stderr: log,
+	}, nil
 }
 
 type Runner struct {
@@ -213,15 +217,17 @@ func (r *Runner) Start(containerDir string, rootFs string) {
 			}
 			defer container.Destroy()
 
-			taskProcess := process(runningTask)
+			taskProcess, err := process(runningTask)
+			if err != nil {
+				log.Println("Error creating task process", err)
+				return
+			}
 
 			err = container.Run(taskProcess)
 			if err != nil {
 				log.Println("Error running task", err)
 				return
 			}
-
-			log.Println(container.Processes())
 
 			taskState, err := taskProcess.Wait()
 			if err != nil {

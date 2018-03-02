@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/arthurfabre/scheduler/api"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/jessevdk/go-flags"
 	"log"
@@ -35,6 +36,11 @@ var opts struct {
 	NewCluster bool `short:"n" long:"new-cluster" description:"Start a new cluster (instead of joining an existing one)"`
 
 	RootFs string `short:"r" long:"root-fs" description:"RootFS used to run tasks in"`
+}
+
+// getLog returns the log file location for a given TaskID
+func getLog(id *api.TaskID) string {
+	return filepath.Join(opts.DataDir, id.Uuid)
 }
 
 func main() {
