@@ -8,16 +8,21 @@
 
 * `protoc`
 
-* `protoc-gen-go`: https://github.com/golang/protobuf/
+* [`protoc-gen-go`](https://github.com/golang/protobuf/)
+    * `go get -u github.com/golang/protobuf/protoc-gen-go`
 
-* `go dep`
+* [`dep`](https://github.com/golang/dep)
+    * `go get -u github.com/golang/dep/cmd/dep`
 
+* `$GOPATH/bin` in `$PATH` if `go get` is used to install `dep` or `protoc-gen-go`
 
 ## Build
 
-* `dep ensure`: Download & vendor all dependencies
+* `make`: Build `client` and `server`
 
-* `make`: Build `./scheduler`
+## Options
+
+* See `./server.elf --help` and `./client.elf --help`
 
 
 # Design
