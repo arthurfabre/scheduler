@@ -31,7 +31,7 @@ func (s *logsCommand) Execute(args []string) error {
 			break
 		}
 		if err != nil {
-			log.Fatalln("Error retrieving log")
+			log.Fatalln("Error retrieving log", err)
 		}
 
 		for _, line := range logEntry.Line {
