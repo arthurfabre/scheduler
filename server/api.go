@@ -44,6 +44,20 @@ func (s *taskServiceServer) Cancel(ctx context.Context, id *api.TaskID) (*api.Em
 		return nil, err
 	}
 
+	// Check the task's status allows being canceled
+	switch task.Status.Status.(type) {
+	case *api.TaskStatus_Queued_:
+		// OK
+	case *api.TaskStatus_Running_:
+		// OK
+	case *api.TaskStatus_Complete_:
+		return nil, fmt.Errorf("Task %s is already complete", id.Uuid)
+	case *api.TaskStatus_Canceled_:
+		return nil, fmt.Errorf("Task %s is already canceled", id.Uuid)
+	default:
+		return nil, fmt.Errorf("Task %s unknown status", id.Uuid)
+	}
+
 	err = task.cancel(ctx, s.client)
 	if err != nil {
 		return nil, err
