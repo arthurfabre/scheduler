@@ -67,6 +67,21 @@ func client() (*clientv3.Client, error) {
 	})
 }
 
+// etcdCfg creates the etcd config from the parsed opts
+func etcdCfg(rootCtx context.Context) etcdConfig {
+	return etcdConfig{
+		name:       opts.Args.Name,
+		ip:         opts.Args.IP,
+		clientPort: opts.EtcdClientPort,
+		peerPort:   opts.EtcdPeerPort,
+		dataDir:    filepath.Join(opts.DataDir, etcdDir),
+		nodes:      opts.Nodes,
+		newCluster: opts.NewCluster,
+		timeout:    timeout,
+		ctx:        rootCtx,
+	}
+}
+
 // start starts the server, blocking until an error is encountered
 func run() error {
 	parser := flags.NewParser(&opts, flags.HelpFlag)
@@ -85,7 +100,7 @@ func run() error {
 	errors := make(chan error)
 
 	start(func() error {
-		return RunEtcd(opts.Args.Name, opts.Args.IP, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster, timeout, rootCtx)
+		return RunEtcd(etcdCfg(rootCtx))
 	}, errors)
 
 	cli, err := client()
