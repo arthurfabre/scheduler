@@ -227,13 +227,13 @@ func (r *Runner) watchCancel(task *Task, process *libcontainer.Process, ctx cont
 func (r *Runner) runTask(ctx context.Context, task *Task, factory libcontainer.Factory, cfg *configs.Config) error {
 	container, err := factory.Create(task.Id.Uuid, cfg)
 	if err != nil {
-		return fmt.Errorf("Error creating container: %s", err)
+		return fmt.Errorf("error creating container: %s", err)
 	}
 	defer container.Destroy()
 
 	taskProcess, err := process(task)
 	if err != nil {
-		return fmt.Errorf("Error creating task process: %s", err)
+		return fmt.Errorf("error creating task process: %s", err)
 	}
 
 	// cancelCancel cancels the context used for task cancelation watching
@@ -243,7 +243,7 @@ func (r *Runner) runTask(ctx context.Context, task *Task, factory libcontainer.F
 
 	err = container.Run(taskProcess)
 	if err != nil {
-		return fmt.Errorf("Error running task process: %s", err)
+		return fmt.Errorf("error running task process: %s", err)
 	}
 
 	taskState, waitErr := taskProcess.Wait()
@@ -257,17 +257,17 @@ func (r *Runner) runTask(ctx context.Context, task *Task, factory libcontainer.F
 	// Task finished normally
 	default:
 		if waitErr != nil {
-			return fmt.Errorf("Error waiting for task process: %s", waitErr)
+			return fmt.Errorf("error waiting for task process: %s", waitErr)
 		}
 
 		taskStatus, ok := taskState.Sys().(syscall.WaitStatus)
 		if !ok {
-			return fmt.Errorf("Error getting task process exit code")
+			return fmt.Errorf("error getting task process exit code")
 		}
 
 		err = task.complete(context.Background(), r.client, r.id, taskStatus.ExitStatus())
 		if err != nil {
-			return fmt.Errorf("Error completing task: %s", err)
+			return fmt.Errorf("error completing task: %s", err)
 		}
 
 		return nil
@@ -278,12 +278,12 @@ func (r *Runner) runTask(ctx context.Context, task *Task, factory libcontainer.F
 func (r *Runner) Run(ctx context.Context, containerDir string, rootFs string) error {
 	rootFs, err := filepath.Abs(rootFs)
 	if err != nil {
-		return fmt.Errorf("Error getting absolute rootfs path: %s", err)
+		return fmt.Errorf("error getting absolute rootfs path: %s", err)
 	}
 
 	factory, err := libcontainer.New(containerDir, libcontainer.Cgroupfs, libcontainer.InitArgs(os.Args[0], "init"))
 	if err != nil {
-		return fmt.Errorf("Error creating libcontainer factory: %s", err)
+		return fmt.Errorf("error creating libcontainer factory: %s", err)
 	}
 
 	// TODO - What does cgroupName do?

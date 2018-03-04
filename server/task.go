@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	ConcurrentTaskModErr = errors.New("Concurrent task modification")
+	ConcurrentTaskModErr = errors.New("concurrent task modification")
 )
 
 // Task handles storing and updating tasks (and their status) in etcd.
@@ -188,7 +188,7 @@ func getTask(ctx context.Context, client *clientv3.Client, id *api.TaskID) (*Tas
 
 	// We're not searching for a range or prefix
 	if len(resp.Kvs) != 1 {
-		return nil, fmt.Errorf("Expected a single key match, got %d", resp.Count)
+		return nil, fmt.Errorf("expected a single key match, got %d", resp.Count)
 	}
 
 	return parseTask(resp.Kvs[0])
@@ -205,7 +205,7 @@ func parseTask(kv *mvccpb.KeyValue) (*Task, error) {
 
 	// Ensure the task matches its key
 	if task.Id.Uuid != taskID(key).Uuid {
-		return nil, fmt.Errorf("Key mismatch key: %s, proto: %s", key, task.Id.Uuid)
+		return nil, fmt.Errorf("key mismatch key: %s, proto: %s", key, task.Id.Uuid)
 	}
 
 	return task, nil
@@ -280,7 +280,7 @@ func idKey(prefix string, key *api.TaskID) string {
 func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus *api.TaskStatus) (err error) {
 	// Disallow changing to the same status
 	if t.Status != nil && reflect.TypeOf(t.Status.Status) == reflect.TypeOf(newStatus.Status) {
-		return fmt.Errorf("Task already has status %T", t.Status.Status)
+		return fmt.Errorf("task already has status %T", t.Status.Status)
 	}
 
 	// Preserve old status to know which old key to delete

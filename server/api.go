@@ -51,11 +51,11 @@ func (s *taskServiceServer) Cancel(ctx context.Context, id *api.TaskID) (*api.Em
 	case *api.TaskStatus_Running_:
 		// OK
 	case *api.TaskStatus_Complete_:
-		return nil, fmt.Errorf("Task %s is already complete", id.Uuid)
+		return nil, fmt.Errorf("task %s is already complete", id.Uuid)
 	case *api.TaskStatus_Canceled_:
-		return nil, fmt.Errorf("Task %s is already canceled", id.Uuid)
+		return nil, fmt.Errorf("task %s is already canceled", id.Uuid)
 	default:
-		return nil, fmt.Errorf("Task %s unknown status", id.Uuid)
+		return nil, fmt.Errorf("task %s unknown status", id.Uuid)
 	}
 
 	err = task.cancel(ctx, s.client)
@@ -87,11 +87,11 @@ func (s *taskServiceServer) Logs(id *api.TaskID, stream api.TaskService_LogsServ
 		nodeId = task.Status.GetComplete().NodeId
 		isDone = true
 	case *api.TaskStatus_Canceled_:
-		return fmt.Errorf("Task %s is canceled", id.Uuid)
+		return fmt.Errorf("task %s is canceled", id.Uuid)
 	case *api.TaskStatus_Failed_:
-		return fmt.Errorf("Task %s has failed", id.Uuid)
+		return fmt.Errorf("task %s has failed", id.Uuid)
 	default:
-		return fmt.Errorf("Task %s unknown status", id.Uuid)
+		return fmt.Errorf("task %s unknown status", id.Uuid)
 	}
 
 	// We're not running / handling the task, proxy to the node that is

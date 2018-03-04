@@ -105,7 +105,7 @@ func run() error {
 
 	cli, err := client()
 	if err != nil {
-		return fmt.Errorf("Error connecting to local etcd: %s", err)
+		return fmt.Errorf("error connecting to local etcd: %s", err)
 	}
 
 	taskServer := taskServiceServer{cli, id}
