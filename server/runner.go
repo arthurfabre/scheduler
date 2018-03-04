@@ -18,6 +18,9 @@ import (
 	"github.com/arthurfabre/scheduler/api"
 )
 
+// taskAttempts is the maximum number of times we attempt to run a given task
+const taskAttempts = 3
+
 // Allow us to use ourselves as the container init
 // nicked from https://github.com/opencontainers/runc/tree/master/libcontainer#using-libcontainer
 func init() {
@@ -306,11 +309,16 @@ func (r *Runner) Run(ctx context.Context, containerDir string, rootFs string) er
 					return
 				}
 
-				log.Println("Error running task, re-queuing:", err)
-				err = task.queue(ctx, r.client)
+				task.Attempts++
+				if task.Attempts >= taskAttempts {
+					err = task.fail(ctx, r.client, err)
+				} else {
+					err = task.queue(ctx, r.client)
+				}
+
 				if err != nil {
 					// Not much we can do at this point...
-					log.Println("Error re-queuing failed task:", err)
+					log.Println("Error updating failed task:", err)
 				}
 			}(task)
 

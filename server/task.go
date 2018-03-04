@@ -25,6 +25,7 @@ const (
 	runningPrefixFmt  = "task/status/running/%s/"
 	completePrefixFmt = "task/status/complete/%d/"
 	canceledPrefixFmt = "task/status/canceled/%d/"
+	failedPrefixFmt   = "task/status/failed/"
 )
 
 // Task handles storing and updating tasks (and their status) in etcd.
@@ -230,6 +231,11 @@ func canceledPrefix(age int64) string {
 	return fmt.Sprintf(canceledPrefixFmt, age)
 }
 
+// failedPrefix returns the status key prefix for failed tasks
+func failedPrefix() string {
+	return failedPrefixFmt
+}
+
 // statusKey returns the etcd status key of a Task for a given TaskStatus
 func (t *Task) statusKey(status *api.TaskStatus) string {
 	var prefix string
@@ -243,6 +249,8 @@ func (t *Task) statusKey(status *api.TaskStatus) string {
 		prefix = completePrefix(status.GetComplete().Epoch)
 	case *api.TaskStatus_Canceled_:
 		prefix = canceledPrefix(status.GetCanceled().Epoch)
+	case *api.TaskStatus_Failed_:
+		prefix = failedPrefix()
 	default:
 		// TODO - Is this wise?
 		panic("Unexpected Task status")
@@ -344,4 +352,9 @@ func (t *Task) complete(ctx context.Context, client *clientv3.Client, nodeID *ap
 // cancel marks the Task as "canceled" as of now, in etcd.
 func (t *Task) cancel(ctx context.Context, client *clientv3.Client) error {
 	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Canceled_{&api.TaskStatus_Canceled{time.Now().Unix()}}})
+}
+
+// queue marks the Task as "error" with msg, in etcd.
+func (t *Task) fail(ctx context.Context, client *clientv3.Client, err error) error {
+	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Failed_{&api.TaskStatus_Failed{err.Error()}}})
 }

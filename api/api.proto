@@ -77,11 +77,22 @@ message TaskStatus {
         int64 epoch = 1;
     }
 
+    /**
+     * Task failed due to an error.
+     */
+    message Failed {
+        /**
+         * Message describing the error.
+         */
+        string error = 1;
+    }
+
     oneof Status {
         Queued queued = 1;
         Running running = 2;
         Complete complete = 3;
         Canceled canceled = 4;
+        Failed failed = 5;
     }
 }
 

@@ -9,4 +9,9 @@ message Task {
     api.TaskRequest request = 1;
     api.TaskStatus status = 2;
     api.TaskID id = 3;
+
+    /**
+     * Number of attempts to run this task that have been made
+     */
+    uint32 attempts = 4;
 }
