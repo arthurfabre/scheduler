@@ -297,7 +297,12 @@ func (r *Runner) Run(ctx context.Context, containerDir string, rootFs string) er
 			task := taskEvent.(TaskUpdate).task
 
 			if err := task.run(ctx, r.client, r.id); err != nil {
-				// TODO - Differentiate stolen task from other errors
+				switch err {
+				case ConcurrentTaskModErr:
+					// Expected, someone else took the task
+				default:
+					log.Println("Error marking task as running:", err)
+				}
 				continue
 			}
 
