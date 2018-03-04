@@ -144,7 +144,7 @@ func getTask(ctx context.Context, client *clientv3.Client, id *api.TaskID) (*Tas
 
 	// We're not searching for a range or prefix
 	if len(resp.Kvs) != 1 {
-		return nil, fmt.Errorf("Too many matching keys, found %d", resp.Count)
+		return nil, fmt.Errorf("Expected a single key match, got %d", resp.Count)
 	}
 
 	t := resp.Kvs[0]
@@ -181,7 +181,7 @@ func completePrefix(age int64) string {
 	return fmt.Sprintf(completePrefixFmt, age)
 }
 
-// canceledPrefix returns the status key prefix for tasks canceledat age
+// canceledPrefix returns the status key prefix for tasks canceled at age
 func canceledPrefix(age int64) string {
 	return fmt.Sprintf(canceledPrefixFmt, age)
 }
@@ -215,7 +215,7 @@ func taskID(key string) *api.TaskID {
 
 // idKey converts a key prefix to full status / task key
 func idKey(prefix string, key *api.TaskID) string {
-	return fmt.Sprintf(prefix+"%s", key.Uuid)
+	return prefix + key.Uuid
 }
 
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
