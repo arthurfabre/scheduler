@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/url"
@@ -22,7 +23,7 @@ func URL(ip string, port uint16) ([]url.URL, error) {
 }
 
 // RunEtcd runs an embedded etcd instance. Blocking.
-func RunEtcd(name string, ip string, clientPort uint16, peerPort uint16, dataDir string, nodes []string, newCluster bool, timeout time.Duration) error {
+func RunEtcd(name string, ip string, clientPort uint16, peerPort uint16, dataDir string, nodes []string, newCluster bool, timeout time.Duration, ctx context.Context) error {
 	cfg := embed.NewConfig()
 
 	cfg.Name = name
@@ -68,7 +69,16 @@ func RunEtcd(name string, ip string, clientPort uint16, peerPort uint16, dataDir
 	case <-time.After(timeout):
 		e.Server.Stop()
 		return fmt.Errorf("Failed to start etcd server in:", timeout)
+	case <-ctx.Done():
+		e.Server.Stop()
 	}
 
-	return <-e.Err()
+	select {
+	case <-ctx.Done():
+		e.Server.Stop()
+	case err = <-e.Err():
+		return err
+	}
+
+	return nil
 }

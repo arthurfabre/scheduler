@@ -85,7 +85,7 @@ func run() error {
 	errors := make(chan error)
 
 	start(func() error {
-		return RunEtcd(opts.Args.Name, opts.Args.IP, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster, timeout)
+		return RunEtcd(opts.Args.Name, opts.Args.IP, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster, timeout, rootCtx)
 	}, errors)
 
 	cli, err := client()
