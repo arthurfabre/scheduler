@@ -1,8 +1,6 @@
 * Kubernetes like thing
 
-# Usage
-
-## Requirements
+# Requirements
 
 * `make`
 
@@ -19,14 +17,20 @@
 * Suitable rootfs for running a container
     * With `docker`: `docker export $(docker create busybox) | tar -C rootfs/ -xvf -`
 
-## Build
+# Build
 
 * `make`: Build `client` and `server`
 
-## Options
+# Usage
 
 * See `./server.elf --help` and `./client.elf --help`
 
+* Two node cluster:
+`sudo ./server.elf --data-dir (mktemp -d) 127.0.0.1 node1 -N "node2=http://127.0.0.2:2380" -n -r rootfs/`
+`sudo ./server.elf --data-dir (mktemp -d) 127.0.0.2 node2 -N "node1=http://127.0.0.1:2380" -n -r rootfs/`
+
+* Submit task:
+`./client.elf -N 127.0.0.2:8080 run ls -- -l`
 
 # Design
 
@@ -53,7 +57,7 @@
 * Nodes watch tasks they're running to see if they've been stopped / canceled
 
 * Nodes generate unique UUID for themselves, and store in etcd with a lease
-    * Etcd leader monitors this keyspace for DELETES - indicate a node has gone
+    * All nodes monitor this keyspace for DELETES - indicate a node has gone
         * Its tasks are sent back to "queued"
 
 
@@ -123,23 +127,36 @@
 * Work distribution could be unfair (see Work Stealing Algorithm)
 
 * Etcd is embedded in every node, limiting max cluster size (etc recommends 7 max)
-    * Could be replaced with a proxy in some (most) nodes
+    * Could be turned off in some (most) nodes
         * No design limits preventing this implementation
 
-* Single node (Etcd leader) in charge of cleanup
-    * Distributed stealing algorithm could be implemented instead
+* Stealing algorithm is used to deal with node failures
+    * Can be expensive
 
 * All comms are over HTTP, not HTTPS
+
+* Server must be run as `root`
+    * Can't configure `cgroups` otherwise
 
 
 # TODO
 
-* Remove old finished jobs from etcd
+* Remove old finished tasks
+    * Can be listed using `listDoneTasks()` from `task.go`
+    * Need to implement `Task.delete()`
+
+* Resource constraints / limits
+    * Need to be added to `api.proto` in `TaskRequest`
+    * Use [procfs](https://godoc.org/github.com/prometheus/procfs) to monitor system usage
+    * Check task doesn't exceed system usage before stealing it in `runner.go`
+
+* Failed node task migration
+    * Nodes need to obtain a lease, publish their UUID in `/node`, and watch `/node` for `DELETE`s
+    * On `DELETE`, every node tries to:
+        * list all the running tasks of the failed node using `listNodeTasks()` from `task.go`
+        * Requeue every task found
 
 * Testing
-
-* Database compaction & defrag
-
 
 # Background docs
 
