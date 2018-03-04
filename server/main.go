@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -18,6 +17,10 @@ const (
 	// Subdirectories of our data dir
 	etcdDir      = "etcd"
 	containerDir = "container"
+
+	// timeout for starting etcd and the client
+	// Needs to be fairly long for static bootstrap to complete
+	timeout = 60 * time.Second
 )
 
 var opts struct {
@@ -46,39 +49,72 @@ func getLog(id *api.TaskID) string {
 	return filepath.Join(opts.DataDir, id.Uuid)
 }
 
-func main() {
-	if _, err := flags.Parse(&opts); err != nil {
-		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
-			os.Exit(0)
-		} else {
-			os.Exit(1)
+// start runs a function in a goroutine, writing any errors to e. Non-blocking.
+func start(f func() error, e chan<- error) {
+	go func() {
+		err := f()
+		if err != nil {
+			e <- err
 		}
+	}()
+}
+
+// client creates an etcd client from the parsed opts
+func client() (*clientv3.Client, error) {
+	return clientv3.New(clientv3.Config{
+		Endpoints:   []string{fmt.Sprintf("http://%s:%d", opts.Args.IP, opts.EtcdClientPort)},
+		DialTimeout: timeout,
+	})
+}
+
+// start starts the server, blocking until an error is encountered
+func run() error {
+	parser := flags.NewParser(&opts, flags.HelpFlag)
+	if _, err := parser.Parse(); err != nil {
+		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
+			fmt.Println(flagsErr)
+			return nil
+		}
+		return err
 	}
 
 	id := nodeID(opts.Args.IP, opts.ApiPort)
 
-	// TODO - use rootCancel()?
-	rootCtx, _ := context.WithCancel(context.Background())
+	rootCtx, rootCancel := context.WithCancel(context.Background())
 
-	// TODO - Pass rootCtx
-	go startEtcd(opts.Args.Name, opts.Args.IP, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster)
+	errors := make(chan error)
 
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{fmt.Sprintf("http://%s:%d", opts.Args.IP, opts.EtcdClientPort)},
-		DialTimeout: 2 * time.Second,
-	})
+	start(func() error {
+		return RunEtcd(opts.Args.Name, opts.Args.IP, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster, timeout)
+	}, errors)
+
+	cli, err := client()
 	if err != nil {
-		log.Fatalln("Error connecting to local etcd:", err)
+		return fmt.Errorf("Error connecting to local etcd: %s", err)
 	}
 
 	taskServer := taskServiceServer{cli, id}
-	go taskServer.Start(opts.Args.IP, opts.ApiPort)
+	start(func() error {
+		return taskServer.Run(opts.Args.IP, opts.ApiPort)
+	}, errors)
 
 	runner := Runner{cli, id}
-	go runner.Start(rootCtx, filepath.Join(opts.DataDir, containerDir), opts.RootFs)
+	start(func() error {
+		return runner.Run(rootCtx, filepath.Join(opts.DataDir, containerDir), opts.RootFs)
+	}, errors)
 
-	// TODO - Hacky AF
-	for {
-		time.Sleep(1 * time.Second)
+	err = <-errors
+	if err != nil {
+		rootCancel()
+		return err
+	}
+
+	return nil
+}
+
+func main() {
+	err := run()
+	if err != nil {
+		log.Fatalln(err)
 	}
 }

@@ -12,22 +12,33 @@ import (
 )
 
 // Get a String URL as slice of url.URLs
-func URL(ip string, port uint16) []url.URL {
-	// TODO - We probably shouldn't ignore the error?
-	parsed, _ := url.Parse(fmt.Sprintf("http://%s:%d", ip, port))
-	return []url.URL{*parsed}
+func URL(ip string, port uint16) ([]url.URL, error) {
+	parsed, err := url.Parse(fmt.Sprintf("http://%s:%d", ip, port))
+	if err != nil {
+		return nil, err
+	}
+
+	return []url.URL{*parsed}, nil
 }
 
-func startEtcd(name string, ip string, clientPort uint16, peerPort uint16, dataDir string, nodes []string, newCluster bool) {
+// RunEtcd runs an embedded etcd instance. Blocking.
+func RunEtcd(name string, ip string, clientPort uint16, peerPort uint16, dataDir string, nodes []string, newCluster bool, timeout time.Duration) error {
 	cfg := embed.NewConfig()
 
 	cfg.Name = name
 	cfg.Dir = dataDir
 
 	// Other etcd servers
-	cfg.LPUrls = URL(ip, peerPort)
+	var err error
+	cfg.LPUrls, err = URL(ip, peerPort)
+	if err != nil {
+		return err
+	}
 	// Client
-	cfg.LCUrls = URL(ip, clientPort)
+	cfg.LCUrls, err = URL(ip, clientPort)
+	if err != nil {
+		return err
+	}
 
 	// We only bind the public IP, advertise that
 	cfg.APUrls = cfg.LPUrls
@@ -45,19 +56,19 @@ func startEtcd(name string, ip string, clientPort uint16, peerPort uint16, dataD
 	// We only use v3
 	cfg.EnableV2 = false
 
-	// TODO - This is example code, check error handling
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer e.Close()
+
 	select {
 	case <-e.Server.ReadyNotify():
 		log.Printf("Server is ready!")
-	case <-time.After(60 * time.Second):
-		e.Server.Stop() // trigger a shutdown
-		log.Printf("Server took too long to start!")
+	case <-time.After(timeout):
+		e.Server.Stop()
+		return fmt.Errorf("Failed to start etcd server in:", timeout)
 	}
 
-	log.Fatal(<-e.Err())
+	return <-e.Err()
 }

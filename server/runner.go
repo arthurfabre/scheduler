@@ -221,7 +221,7 @@ func (r *Runner) watchCancel(task *Task, process *libcontainer.Process, ctx cont
 }
 
 // run executes a Task in a container. Error indicates task was not able to be run.
-func (r *Runner) run(ctx context.Context, task *Task, factory libcontainer.Factory, cfg *configs.Config) error {
+func (r *Runner) runTask(ctx context.Context, task *Task, factory libcontainer.Factory, cfg *configs.Config) error {
 	container, err := factory.Create(task.Id.Uuid, cfg)
 	if err != nil {
 		return fmt.Errorf("Error creating container: %s", err)
@@ -271,15 +271,16 @@ func (r *Runner) run(ctx context.Context, task *Task, factory libcontainer.Facto
 	}
 }
 
-func (r *Runner) Start(ctx context.Context, containerDir string, rootFs string) {
+// Run starts a watcher waiing for tasks to run. Blocking.
+func (r *Runner) Run(ctx context.Context, containerDir string, rootFs string) error {
 	rootFs, err := filepath.Abs(rootFs)
 	if err != nil {
-		log.Fatalln("Error getting absolute rootfs path", err)
+		return fmt.Errorf("Error getting absolute rootfs path: %s", err)
 	}
 
 	factory, err := libcontainer.New(containerDir, libcontainer.Cgroupfs, libcontainer.InitArgs(os.Args[0], "init"))
 	if err != nil {
-		log.Fatalln("Error creating libcontainer factory:", err)
+		return fmt.Errorf("Error creating libcontainer factory: %s", err)
 	}
 
 	// TODO - What does cgroupName do?
@@ -300,7 +301,7 @@ func (r *Runner) Start(ctx context.Context, containerDir string, rootFs string) 
 			log.Println("Running task", task.Id.Uuid)
 
 			go func(task *Task) {
-				err := r.run(ctx, task, factory, cfg)
+				err := r.runTask(ctx, task, factory, cfg)
 				if err == nil {
 					return
 				}
@@ -317,4 +318,6 @@ func (r *Runner) Start(ctx context.Context, containerDir string, rootFs string) 
 			log.Println("Error watching for queued tasks:", taskEvent.(TaskError).err)
 		}
 	}
+
+	return nil
 }

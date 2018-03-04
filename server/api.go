@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
 
 	"github.com/arthurfabre/scheduler/api"
@@ -142,13 +141,19 @@ func (s *taskServiceServer) Logs(id *api.TaskID, stream api.TaskService_LogsServ
 	return nil
 }
 
-func (s *taskServiceServer) Start(ip string, port uint16) {
+// Run runs the gRPC server for the API. Blocking.
+func (s *taskServiceServer) Run(ip string, port uint16) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ip, port))
 	if err != nil {
-		log.Fatalln("Failed to listen on port %d", port, err)
+		return err
 	}
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTaskServiceServer(grpcServer, s)
-	grpcServer.Serve(lis)
+	err = grpcServer.Serve(lis)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
