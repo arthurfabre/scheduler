@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -272,8 +273,10 @@ func idKey(prefix string, key *api.TaskID) string {
 
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
 func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus *api.TaskStatus) (err error) {
-	// TODO - Check oldStatus != newStatus. Not sure how to do this without reflection...
-	//_, ok := t.Status.Status.(newStatus.Status)
+	// Disallow changing to the same status
+	if t.Status != nil && reflect.TypeOf(t.Status.Status) == reflect.TypeOf(newStatus.Status) {
+		return fmt.Errorf("Task already has status %T", t.Status.Status)
+	}
 
 	// Preserve old status to know which old key to delete
 	oldStatus := t.Status
