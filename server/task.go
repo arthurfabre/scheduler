@@ -8,9 +8,9 @@ import (
 	"github.com/arthurfabre/scheduler/server/pb"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/clientv3util"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/satori/go.uuid"
-	"log"
 	"strings"
 	"time"
 )
@@ -40,39 +40,74 @@ type Task struct {
 	key string
 }
 
-// watchQueuedTasks returns a Channel of Tasks that have just been queued
-func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan *Task {
+// TaskEvent is a union / sum type of possible events
+type TaskEvent interface {
+	isTaskEvent()
+}
+
+// TaskUpdate means a task was modified in etcd
+type TaskUpdate struct {
+	// The updated task
+	task *Task
+}
+
+func (t TaskUpdate) isTaskEvent() {}
+
+// TaskDelete means a task was deleted in etcd
+type TaskDelete struct {
+	id *api.TaskID
+}
+
+func (t TaskDelete) isTaskEvent() {}
+
+// TaskError means a task was updated / deleted, but an error occured
+type TaskError struct {
+	err error
+	id  *api.TaskID // may be nil
+}
+
+func (t TaskError) isTaskEvent() {}
+
+// watchQueuedTasks returns a Channel of TaskEvents for Tasks that have just been queued
+func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan TaskEvent {
 	return watchTasks(ctx, client, queuedPrefix(), clientv3.WithPrefix())
 }
 
-// watch returns a Channel of updates to this Task since this task was last updated / retrieved
-func (t *Task) watch(ctx context.Context, client *clientv3.Client) <-chan *Task {
+// watch returns a Channel of TaskEvent updates to this Task since this task was last updated / retrieved
+func (t *Task) watch(ctx context.Context, client *clientv3.Client) <-chan TaskEvent {
 	// Revision + 1 so we don't get the last modification we're aware of, but the next
-	return watchTasks(ctx, client, t.key, clientv3.WithRev(t.modRevision + 1))
+	return watchTasks(ctx, client, t.key, clientv3.WithRev(t.modRevision+1))
 }
 
-// watchTasks returns a Channel of Tasks using etcd WATCH(key, FilterDelete(), opts...)
-// TODO - Expose errors and delete with <-chan WatchResponse{Task, Error, bool delete}
-func watchTasks(ctx context.Context, client *clientv3.Client, key string, opts ...clientv3.OpOption) <-chan *Task {
-	out := make(chan *Task)
+// watchTasks returns a Channel of TaskEvent using etcd WATCH(key, opts...)
+func watchTasks(ctx context.Context, client *clientv3.Client, key string, opts ...clientv3.OpOption) <-chan TaskEvent {
+	out := make(chan TaskEvent)
 
 	go func() {
 		defer close(out)
 
-		for resp := range client.Watch(ctx, key, append(opts, clientv3.WithFilterDelete())...) {
+		for resp := range client.Watch(ctx, key, opts...) {
 			if resp.Err() != nil {
-				log.Println("Task watch error:", resp.Err())
+				out <- TaskError{resp.Err(), nil}
 				return
 			}
 
 			for _, ev := range resp.Events {
+				// TODO - we should be able to just `task, err := parseTask(ev.Kv)`, but ev.Kv.Value is nil..
 				task, err := getTask(ctx, client, taskID(string(ev.Kv.Key)))
+
 				if err != nil {
-					log.Println("Error retrieving task", ev.Kv.Key)
+					out <- TaskError{err, taskID(string(ev.Kv.Key))}
 					continue
 				}
 
-				out <- task
+				switch ev.Type {
+				case mvccpb.DELETE:
+					out <- TaskDelete{task.Id}
+
+				case mvccpb.PUT:
+					out <- TaskUpdate{task}
+				}
 			}
 		}
 	}()
@@ -80,8 +115,8 @@ func watchTasks(ctx context.Context, client *clientv3.Client, key string, opts .
 	return out
 }
 
-// listDoneTasks returns a list of Tasks that were done (completed or canceled) at least age seconds ago.
-func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]*Task, error) {
+// listDoneTasks returns a list of TaskEvents (no TaskDelete) that were done (completed or canceled) at least age seconds ago.
+func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]TaskEvent, error) {
 	// Get everything from epoch 0 to (Now - age)
 	end := time.Now().Unix() - age
 
@@ -98,28 +133,29 @@ func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]*
 	return append(completed, canceled...), nil
 }
 
-// listNodeTasks returns a list of Tasks that are being run by nodeId.
-func listNodeTasks(ctx context.Context, client *clientv3.Client, nodeId *api.NodeID) ([]*Task, error) {
+// listNodeTasks returns a list of TaskEvents (no TaskDelete) that are being run by nodeId.
+func listNodeTasks(ctx context.Context, client *clientv3.Client, nodeId *api.NodeID) ([]TaskEvent, error) {
 	return listTasks(ctx, client, runningPrefix(nodeId), clientv3.WithPrefix())
 }
 
-// listTasks returns a list of Tasks using etcd GET(key, opts...). Intended to be used with status keys.
-func listTasks(ctx context.Context, client *clientv3.Client, key string, opts ...clientv3.OpOption) ([]*Task, error) {
+// listTasks returns a list of TaskEvents (no TaskDelete) using etcd GET(key, opts...). Intended to be used with status keys.
+func listTasks(ctx context.Context, client *clientv3.Client, key string, opts ...clientv3.OpOption) ([]TaskEvent, error) {
 	resp, err := client.Get(ctx, key, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	tasks := make([]*Task, 0, resp.Count)
+	tasks := make([]TaskEvent, 0, resp.Count)
 
 	for _, t := range resp.Kvs {
-		task, err := getTask(ctx, client, taskID(string(t.Key)))
+		task, err := parseTask(t)
+
 		if err != nil {
-			log.Println("Error retrieving task", t.Key)
+			tasks = append(tasks, TaskError{err, taskID(string(t.Key))})
 			continue
 		}
 
-		tasks = append(tasks, task)
+		tasks = append(tasks, TaskUpdate{task})
 	}
 
 	return tasks, nil
@@ -147,15 +183,21 @@ func getTask(ctx context.Context, client *clientv3.Client, id *api.TaskID) (*Tas
 		return nil, fmt.Errorf("Expected a single key match, got %d", resp.Count)
 	}
 
-	t := resp.Kvs[0]
-	task := &Task{version: t.Version, modRevision: t.ModRevision, key: key, Task: &pb.Task{}}
-	if err := proto.Unmarshal([]byte(t.Value), task.Task); err != nil {
+	return parseTask(resp.Kvs[0])
+}
+
+// parseTask unmarshals / parses a Task from an etcd KV
+func parseTask(kv *mvccpb.KeyValue) (*Task, error) {
+	key := string(kv.Key)
+	task := &Task{version: kv.Version, modRevision: kv.ModRevision, key: key, Task: &pb.Task{}}
+
+	if err := proto.Unmarshal([]byte(kv.Value), task.Task); err != nil {
 		return nil, err
 	}
 
-	// Ensure what we requested and what we got back match up
-	if task.Id.Uuid != id.Uuid {
-		return nil, fmt.Errorf("Requested task %s, received %s", id.Uuid, task.Id.Uuid)
+	// Ensure the task matches its key
+	if task.Id.Uuid != taskID(key).Uuid {
+		return nil, fmt.Errorf("Key mismatch key: %s, proto: %s", key, task.Id.Uuid)
 	}
 
 	return task, nil

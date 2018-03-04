@@ -194,12 +194,20 @@ func (r *Runner) watchCancel(task *Task, process *libcontainer.Process, ctx cont
 	go func() {
 		defer close(cancel)
 
-		for taskUpdate := range task.watch(ctx, r.client) {
-			switch taskUpdate.Status.Status.(type) {
-			case *api.TaskStatus_Canceled_:
-				// Only expected status change
-			default:
-				log.Println("WARN: Unepexcted modifiction of Task while running:", taskUpdate)
+		for taskEvent := range task.watch(ctx, r.client) {
+			switch taskEvent.(type) {
+			case TaskUpdate:
+				taskUpdate := taskEvent.(TaskUpdate)
+				switch taskUpdate.task.Status.Status.(type) {
+				case *api.TaskStatus_Canceled_:
+					// Only expected status change
+				default:
+					log.Println("WARN: Unepexcted modifiction of Task while running:", taskUpdate)
+				}
+			case TaskDelete:
+				log.Println("WARN: Unexpected Task deletion while running")
+			case TaskError:
+				log.Println("WARN: Error watching Task for cancelation:", taskEvent.(TaskError).err)
 			}
 
 			process.Signal(os.Kill)
@@ -277,26 +285,34 @@ func (r *Runner) Start(ctx context.Context, containerDir string, rootFs string) 
 
 	newTasks := watchQueuedTasks(ctx, r.client)
 
-	for task := range newTasks {
-		if err := task.run(ctx, r.client, r.id); err != nil {
-			// TODO - Differentiate stolen task from other errors
-			continue
+	for taskEvent := range newTasks {
+		switch taskEvent.(type) {
+		case TaskUpdate:
+			task := taskEvent.(TaskUpdate).task
+
+			if err := task.run(ctx, r.client, r.id); err != nil {
+				// TODO - Differentiate stolen task from other errors
+				continue
+			}
+
+			log.Println("Running task", task.Id.Uuid)
+
+			go func(task *Task) {
+				err := r.run(ctx, task, factory, cfg)
+				if err == nil {
+					return
+				}
+
+				log.Println("Error running task, re-queuing:", err)
+				err = task.queue(ctx, r.client)
+				if err != nil {
+					// Not much we can do at this point...
+					log.Println("Error re-queuing failed task:", err)
+				}
+			}(task)
+
+		case TaskError:
+			log.Println("Error watching for queued tasks:", taskEvent.(TaskError).err)
 		}
-
-		log.Println("Running task", task.Id.Uuid)
-
-		go func(task *Task) {
-			err := r.run(ctx, task, factory, cfg)
-			if err == nil {
-				return
-			}
-
-			log.Println("Error running task, re-queuing: %s", err)
-			err = task.queue(ctx, r.client)
-			if err != nil {
-				// Not much we can do at this point...
-				log.Println("Error re-queuing failed task: %s", err)
-			}
-		}(task)
 	}
 }
