@@ -256,7 +256,12 @@ func (r *Runner) runTask(ctx context.Context, task *Task, factory libcontainer.F
 
 	// Task finished normally
 	default:
-		if waitErr != nil {
+		// wait() returns errors if exit_code != 0, if we have a real taskState, ignore the error
+		// Idealy we'd check if the error is a `genericError`, and has code `NoProcessOps`,
+		// but `genericError` is not a public type.
+		// See https://github.com/opencontainers/runc/blob/master/libcontainer/process.go#L82
+		// and https://github.com/opencontainers/runc/blob/master/libcontainer/generic_error.go#L69
+		if taskState == nil && waitErr != nil {
 			return fmt.Errorf("error waiting for task process: %s", waitErr)
 		}
 
