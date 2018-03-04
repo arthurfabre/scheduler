@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"github.com/arthurfabre/scheduler/api"
 	"log"
+
+	"github.com/arthurfabre/scheduler/api"
 )
 
 type statusCommand struct {

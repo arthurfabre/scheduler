@@ -4,13 +4,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"net"
+
 	"github.com/arthurfabre/scheduler/api"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/hpcloud/tail"
 	"google.golang.org/grpc"
-	"io"
-	"log"
-	"net"
 )
 
 type taskServiceServer struct {

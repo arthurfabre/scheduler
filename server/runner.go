@@ -3,17 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/arthurfabre/scheduler/api"
-	"github.com/coreos/etcd/clientv3"
-	"github.com/opencontainers/runc/libcontainer"
-	"github.com/opencontainers/runc/libcontainer/configs"
-	_ "github.com/opencontainers/runc/libcontainer/nsenter"
-	"golang.org/x/sys/unix"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"syscall"
+
+	"github.com/coreos/etcd/clientv3"
+	"github.com/opencontainers/runc/libcontainer"
+	"github.com/opencontainers/runc/libcontainer/configs"
+	_ "github.com/opencontainers/runc/libcontainer/nsenter"
+	"golang.org/x/sys/unix"
+
+	"github.com/arthurfabre/scheduler/api"
 )
 
 // Allow us to use ourselves as the container init

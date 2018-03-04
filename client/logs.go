@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/arthurfabre/scheduler/api"
 	"io"
 	"log"
+
+	"github.com/arthurfabre/scheduler/api"
 )
 
 type logsCommand struct {

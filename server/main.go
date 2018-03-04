@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/arthurfabre/scheduler/api"
-	"github.com/coreos/etcd/clientv3"
-	"github.com/jessevdk/go-flags"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/coreos/etcd/clientv3"
+	"github.com/jessevdk/go-flags"
+
+	"github.com/arthurfabre/scheduler/api"
 )
 
 const (
@@ -20,7 +22,7 @@ const (
 
 var opts struct {
 	Args struct {
-		Ip   string `description:"Public IP to bind"`
+		IP   string `description:"Public IP to bind"`
 		Name string `description:"Unique node name"`
 	} `positional-args:"true" required:"true"`
 
@@ -53,16 +55,16 @@ func main() {
 		}
 	}
 
-	id := nodeID(opts.Args.Ip, opts.ApiPort)
+	id := nodeID(opts.Args.IP, opts.ApiPort)
 
 	// TODO - use rootCancel()?
 	rootCtx, _ := context.WithCancel(context.Background())
 
 	// TODO - Pass rootCtx
-	go startEtcd(opts.Args.Name, opts.Args.Ip, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster)
+	go startEtcd(opts.Args.Name, opts.Args.IP, opts.EtcdClientPort, opts.EtcdPeerPort, filepath.Join(opts.DataDir, etcdDir), opts.Nodes, opts.NewCluster)
 
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{fmt.Sprintf("http://%s:%d", opts.Args.Ip, opts.EtcdClientPort)},
+		Endpoints:   []string{fmt.Sprintf("http://%s:%d", opts.Args.IP, opts.EtcdClientPort)},
 		DialTimeout: 2 * time.Second,
 	})
 	if err != nil {
@@ -70,7 +72,7 @@ func main() {
 	}
 
 	taskServer := taskServiceServer{cli, id}
-	go taskServer.Start(opts.Args.Ip, opts.ApiPort)
+	go taskServer.Start(opts.Args.IP, opts.ApiPort)
 
 	runner := Runner{cli, id}
 	go runner.Start(rootCtx, filepath.Join(opts.DataDir, containerDir), opts.RootFs)

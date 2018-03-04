@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/arthurfabre/scheduler/api"
 	"github.com/satori/go.uuid"
+
+	"github.com/arthurfabre/scheduler/api"
 )
 
 // nodeID returns a NodeID with new random UUID

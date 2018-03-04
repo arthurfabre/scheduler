@@ -1,11 +1,13 @@
 package main
 
 import (
-	"github.com/arthurfabre/scheduler/api"
-	"github.com/jessevdk/go-flags"
-	"google.golang.org/grpc"
 	"log"
 	"os"
+
+	"github.com/jessevdk/go-flags"
+	"google.golang.org/grpc"
+
+	"github.com/arthurfabre/scheduler/api"
 )
 
 // Hacky globals for cli parsing...

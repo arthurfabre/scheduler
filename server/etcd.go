@@ -3,11 +3,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/coreos/etcd/embed"
 	"log"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/coreos/etcd/embed"
 )
 
 // Get a String URL as slice of url.URLs

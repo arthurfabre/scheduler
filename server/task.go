@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/arthurfabre/scheduler/api"
-	"github.com/arthurfabre/scheduler/server/pb"
+	"strings"
+	"time"
+
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/clientv3util"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/satori/go.uuid"
-	"strings"
-	"time"
+
+	"github.com/arthurfabre/scheduler/api"
+	"github.com/arthurfabre/scheduler/server/pb"
 )
 
 // Format strings for prefixes. A prefix is a key with everything but the last Task UUID component
@@ -263,6 +265,7 @@ func idKey(prefix string, key *api.TaskID) string {
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
 func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus *api.TaskStatus) (err error) {
 	// TODO - Check oldStatus != newStatus. Not sure how to do this without reflection...
+	//_, ok := t.Status.Status.(newStatus.Status)
 
 	// Preserve old status to know which old key to delete
 	oldStatus := t.Status
