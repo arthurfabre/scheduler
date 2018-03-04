@@ -156,7 +156,31 @@
         * list all the running tasks of the failed node using `listNodeTasks()` from `task.go`
         * Requeue every task found
 
-* Testing
+## Tests
+
+### ETCD
+
+* Startup cancellation
+* Successful startup
+* etcd client can connect
+
+### Task
+
+* Fetching and updating
+    * status keys remain in sync
+* updating out of date task results in ConcurrentTaskModErr
+* `taskID()` parsing of keys works
+* error when unmarshaling invalid task
+* error when unmarshaling task with mis-matched ID
+* `watch()` doesn't leak ressources on error or ctx.Cancel()
+
+### Runner
+
+* container creation and running
+* `watchCancel()` returns when task is canceled
+* `watchCancel()` returns when ctx.Cancel()
+* non zero process exit codes don't cause an error
+
 
 # Background docs
 
