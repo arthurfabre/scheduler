@@ -54,6 +54,8 @@ func (s *taskServiceServer) Cancel(ctx context.Context, id *api.TaskID) (*api.Em
 		return nil, fmt.Errorf("task %s is already complete", id.Uuid)
 	case *api.TaskStatus_Canceled_:
 		return nil, fmt.Errorf("task %s is already canceled", id.Uuid)
+	case *api.TaskStatus_Failed_:
+		return nil, fmt.Errorf("task %s has failed", id.Uuid)
 	default:
 		return nil, fmt.Errorf("task %s unknown status", id.Uuid)
 	}
