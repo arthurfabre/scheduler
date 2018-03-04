@@ -88,6 +88,8 @@ func (s *taskServiceServer) Logs(id *api.TaskID, stream api.TaskService_LogsServ
 		isDone = true
 	case *api.TaskStatus_Canceled_:
 		return fmt.Errorf("Task %s is canceled", id.Uuid)
+	case *api.TaskStatus_Failed_:
+		return fmt.Errorf("Task %s has failed", id.Uuid)
 	default:
 		return fmt.Errorf("Task %s unknown status", id.Uuid)
 	}
