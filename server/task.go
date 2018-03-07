@@ -77,18 +77,24 @@ type TaskError struct {
 func (t TaskError) isTaskEvent() {}
 
 // watchQueuedTasks returns a Channel of TaskEvents for Tasks that have just been queued
-func watchQueuedTasks(ctx context.Context, client *clientv3.Client) <-chan TaskEvent {
+func watchQueuedTasks(ctx context.Context, client KVWatcher) <-chan TaskEvent {
 	return watchTasks(ctx, client, queuedPrefix(), clientv3.WithPrefix())
 }
 
 // watch returns a Channel of TaskEvent updates to this Task since this task was last updated / retrieved
-func (t *Task) watch(ctx context.Context, client *clientv3.Client) <-chan TaskEvent {
+func (t *Task) watch(ctx context.Context, client KVWatcher) <-chan TaskEvent {
 	// Revision + 1 so we don't get the last modification we're aware of, but the next
 	return watchTasks(ctx, client, t.key, clientv3.WithRev(t.modRevision+1))
 }
 
+// KVWatcher combines clientv3.KV and clientv3.Watcher interfaces
+type KVWatcher interface {
+	clientv3.KV
+	clientv3.Watcher
+}
+
 // watchTasks returns a Channel of TaskEvent using etcd WATCH(key, opts...)
-func watchTasks(ctx context.Context, client *clientv3.Client, key string, opts ...clientv3.OpOption) <-chan TaskEvent {
+func watchTasks(ctx context.Context, client KVWatcher, key string, opts ...clientv3.OpOption) <-chan TaskEvent {
 	out := make(chan TaskEvent)
 
 	go func() {
@@ -101,7 +107,7 @@ func watchTasks(ctx context.Context, client *clientv3.Client, key string, opts .
 			}
 
 			for _, ev := range resp.Events {
-				// TODO - we should be able to just `task, err := parseTask(ev.Kv)`, but ev.Kv.Value is nil..
+				// ev.Kv.Value only works if we're matching Tasks and not status keys...
 				task, err := getTask(ctx, client, taskID(string(ev.Kv.Key)))
 
 				if err != nil {
@@ -124,7 +130,7 @@ func watchTasks(ctx context.Context, client *clientv3.Client, key string, opts .
 }
 
 // listDoneTasks returns a list of TaskEvents (no TaskDelete) that were done (completed or canceled) at least age seconds ago.
-func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]TaskEvent, error) {
+func listDoneTasks(ctx context.Context, client clientv3.KV, age int64) ([]TaskEvent, error) {
 	// Get everything from epoch 0 to (Now - age)
 	end := time.Now().Unix() - age
 
@@ -142,12 +148,12 @@ func listDoneTasks(ctx context.Context, client *clientv3.Client, age int64) ([]T
 }
 
 // listNodeTasks returns a list of TaskEvents (no TaskDelete) that are being run by nodeId.
-func listNodeTasks(ctx context.Context, client *clientv3.Client, nodeId *api.NodeID) ([]TaskEvent, error) {
+func listNodeTasks(ctx context.Context, client clientv3.KV, nodeId *api.NodeID) ([]TaskEvent, error) {
 	return listTasks(ctx, client, runningPrefix(nodeId), clientv3.WithPrefix())
 }
 
 // listTasks returns a list of TaskEvents (no TaskDelete) using etcd GET(key, opts...). Intended to be used with status keys.
-func listTasks(ctx context.Context, client *clientv3.Client, key string, opts ...clientv3.OpOption) ([]TaskEvent, error) {
+func listTasks(ctx context.Context, client clientv3.KV, key string, opts ...clientv3.OpOption) ([]TaskEvent, error) {
 	resp, err := client.Get(ctx, key, opts...)
 	if err != nil {
 		return nil, err
@@ -178,7 +184,7 @@ func newTask(req *api.TaskRequest) *Task {
 }
 
 // getTask retrieves a Task from etcd.
-func getTask(ctx context.Context, client *clientv3.Client, id *api.TaskID) (*Task, error) {
+func getTask(ctx context.Context, client clientv3.KV, id *api.TaskID) (*Task, error) {
 	key := taskKey(id)
 
 	resp, err := client.Get(ctx, key)
@@ -277,7 +283,7 @@ func idKey(prefix string, key *api.TaskID) string {
 
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
 // err is a ConcurrentTaskModErr IFF the task was modified before we could set the status
-func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus *api.TaskStatus) (err error) {
+func (t *Task) setStatus(ctx context.Context, client clientv3.KV, newStatus *api.TaskStatus) (err error) {
 	// Disallow changing to the same status
 	if t.Status != nil && reflect.TypeOf(t.Status.Status) == reflect.TypeOf(newStatus.Status) {
 		return fmt.Errorf("task already has status %T", t.Status.Status)
@@ -298,8 +304,6 @@ func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus
 	if err != nil {
 		return
 	}
-
-	kvc := clientv3.NewKV(client)
 
 	// We always need to update the task and its status key
 	thens := []clientv3.Op{
@@ -322,7 +326,7 @@ func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus
 		ifCheck = clientv3util.KeyMissing(t.key)
 	}
 
-	resp, err := kvc.Txn(ctx).If(ifCheck).Then(thens...).Commit()
+	resp, err := client.Txn(ctx).If(ifCheck).Then(thens...).Commit()
 
 	if err != nil {
 		return
@@ -343,26 +347,26 @@ func (t *Task) setStatus(ctx context.Context, client *clientv3.Client, newStatus
 }
 
 // queue marks the Task as "queued" in etcd.
-func (t *Task) queue(ctx context.Context, client *clientv3.Client) error {
+func (t *Task) queue(ctx context.Context, client clientv3.KV) error {
 	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Queued_{&api.TaskStatus_Queued{}}})
 }
 
 // run marks the Task as "running" on nodeID in etcd.
-func (t *Task) run(ctx context.Context, client *clientv3.Client, nodeID *api.NodeID) error {
+func (t *Task) run(ctx context.Context, client clientv3.KV, nodeID *api.NodeID) error {
 	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Running_{&api.TaskStatus_Running{nodeID}}})
 }
 
 // complete marks the Task as "complete" on nodeID, with exitCode, as of now, in etcd.
-func (t *Task) complete(ctx context.Context, client *clientv3.Client, nodeID *api.NodeID, exitCode int) error {
+func (t *Task) complete(ctx context.Context, client clientv3.KV, nodeID *api.NodeID, exitCode int) error {
 	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Complete_{&api.TaskStatus_Complete{nodeID, int32(exitCode), time.Now().Unix()}}})
 }
 
 // cancel marks the Task as "canceled" as of now, in etcd.
-func (t *Task) cancel(ctx context.Context, client *clientv3.Client) error {
+func (t *Task) cancel(ctx context.Context, client clientv3.KV) error {
 	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Canceled_{&api.TaskStatus_Canceled{time.Now().Unix()}}})
 }
 
 // queue marks the Task as "error" with msg, in etcd.
-func (t *Task) fail(ctx context.Context, client *clientv3.Client, err error) error {
+func (t *Task) fail(ctx context.Context, client clientv3.KV, err error) error {
 	return t.setStatus(ctx, client, &api.TaskStatus{&api.TaskStatus_Failed_{&api.TaskStatus_Failed{err.Error()}}})
 }
