@@ -99,7 +99,7 @@ func RunEtcd(c etcdConfig) error {
 		log.Printf("ETCD is ready")
 	case <-time.After(timeout):
 		e.Server.Stop()
-		return fmt.Errorf("failed to start etcd server in:", timeout)
+		return fmt.Errorf("failed to start etcd server in %v:", timeout)
 	case <-c.ctx.Done():
 		e.Server.Stop()
 	}
