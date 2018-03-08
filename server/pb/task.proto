@@ -1,0 +1,29 @@
+syntax = "proto3";
+package pb;
+
+import "api/api.proto";
+
+/**
+ * Internal representation of task.
+ */
+message Task {
+    /**
+     * Request that led to this task. Required.
+     */
+    api.TaskRequest request = 1;
+
+    /**
+     * Current status of this task. Required.
+     */
+    api.TaskStatus status = 2;
+
+    /**
+     * ID of this task. Required.
+     */
+    api.TaskID id = 3;
+
+    /**
+     * Number of attempts to run this task that have been made.
+     */
+    uint32 attempts = 4;
+}

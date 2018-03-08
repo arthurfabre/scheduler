@@ -1,10 +1,13 @@
 syntax = "proto3";
-package schedapi;
+package api;
 
 /**
  * Unique idenitifer for a Task
  */
 message TaskID {
+    /**
+     * UUID of the task. Required.
+     */
     string uuid = 1;
 }
 
@@ -13,14 +16,19 @@ message TaskID {
  */
 message NodeID {
     /**
-     * UUID of the node.
+     * UUID of the node. Required.
      */
     string uuid = 1;
 
     /**
-     * Public URL(s) on which the node is listening for API requests.
+     * IP the node can be reached at. Required.
      */
-    repeated string url = 2;
+    string ip = 2;
+
+    /**
+     * Port the node can be reached at. Required.
+     */
+    int32 port = 3;
 }
 
 /**
@@ -72,17 +80,42 @@ message TaskStatus {
         int64 epoch = 1;
     }
 
+    /**
+     * Task failed due to an error.
+     */
+    message Failed {
+        /**
+         * Message describing the error.
+         */
+        string error = 1;
+    }
+
+    /**
+     * Acutal status. Required.
+     */
     oneof Status {
         Queued queued = 1;
         Running running = 2;
         Complete complete = 3;
         Canceled canceled = 4;
+        Failed failed = 5;
     }
 }
 
+/**
+ * Request to create a Task.
+ */ 
 message TaskRequest {
+    /**
+     * Command to run. Required.
+     */
     string command = 1;
+
+    /**
+     * Arguments to pass to command.
+     */
     repeated string args = 2;
+
     // TODO - Ressource limits / requirements
 }
 
@@ -98,8 +131,25 @@ message Log {
 // TODO - Should we have specific Request / Reponse messages so we can
 // change the API without breaking backwards compatibility?
 service TaskService {
+    /**
+     * Submit and queue a Task from a TaskRequest.
+     * Returns the ID assigned to the task.
+     */
     rpc Submit(TaskRequest) returns (TaskID);
+
+    /**
+     * Get the status of a submitted task.
+     */
     rpc Status(TaskID) returns (TaskStatus);
+
+    /**
+     * Cancel a submitted task.
+     */
     rpc Cancel(TaskID) returns (Empty);
+
+    /**
+     * Retrieve the logs for a task.
+     * Will stream new logs as long as the task is running.
+     */
     rpc Logs(TaskID) returns (stream Log);
 }

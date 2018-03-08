@@ -1,28 +1,48 @@
-# List of source files
-PROTOS:=schedapi/api.pb.go schedserver/pb/task.pb.go
-SRC:=main.go $(shell find schedserver/ -name '*.go')
-
 # Commands
 PROTOC:=protoc
 GO_PROTOC_FLAGS:=
 GO:=go
+DEP:=dep
 
 # Single comma
 COMMA:=,
 
-# Include proto dependency 
-PROTO_DEPS:=$(PROTOS:.pb.go=.d)
--include $(PROTO_DEPS)
+# List of things we need to clean
+CLEAN:=
 
-# Build server
-.DEFAULT_GOAL:=scheduler
-scheduler: $(PROTOS) $(SRC)
-	$(GO) fmt ./...
-	$(GO) build
+define _target
+$1: DIR:=$2/
+$1: $(shell find $2/ -name '*.go') $3
+
+# Include proto dependency 
+-include $(3:.pb.go=.d)
+
+CLEAN+=$1 $(3:.pb.go=.d) $3
+endef
+
+define target
+$(eval $(call _target,$1.elf,$1,$2))$1.elf
+endef
+
+CLIENT:=$(call target,client,api/api.pb.go)
+SERVER:=$(call target,server,api/api.pb.go server/pb/task.pb.go)
 
 # Override go package name to depend on it
 # TODO - Could we do this automatically from depdency info somehow?
-schedserver/pb/task.pb.go: GO_PROTOC_FLAGS+= Mschedapi/api.proto=github.com/arthurfabre/scheduler/schedapi
+server/pb/task.pb.go: GO_PROTOC_FLAGS+= Mapi/api.proto=github.com/arthurfabre/scheduler/api
+
+.DEFAULT_GOAL:=all
+.PHONY:all
+all: $(CLIENT) $(SERVER)
+
+# Build package into executable
+%.elf: vendor/
+	$(GO) fmt ./$(DIR)...
+	$(GO) build -o $@ ./$(DIR)
+
+# Fetch dependencies with dep
+vendor/: Gopkg.lock Gopkg.toml
+	$(DEP) ensure
 
 # Compile proto definition
 %.pb.go: %.proto
@@ -30,5 +50,4 @@ schedserver/pb/task.pb.go: GO_PROTOC_FLAGS+= Mschedapi/api.proto=github.com/arth
 
 .PHONY: clean
 clean:
-	rm -rf $(PROTOS) $(PROTO_DEPS)
-	go clean
+	rm -f $(CLEAN)
