@@ -177,14 +177,23 @@ func listTasks(ctx context.Context, client clientv3.KV, key string, opts ...clie
 
 // newTask constructs a Task from a TaskRequest, assigining it a UUID.
 // Nothing is submitted to etcd.
-func newTask(req *api.TaskRequest) *Task {
+// req is sanitized / checked
+func newTask(req *api.TaskRequest) (*Task, error) {
+	if err := checkTaskRequest(req); err != nil {
+		return nil, err
+	}
+
 	id := &api.TaskID{uuid.NewV4().String()}
 
-	return &Task{key: taskKey(id), Task: &pb.Task{Request: req, Id: id}}
+	return &Task{key: taskKey(id), Task: &pb.Task{Request: req, Id: id}}, nil
 }
 
-// getTask retrieves a Task from etcd.
+// getTask retrieves a Task from etcd. id is sanitized / checked.
 func getTask(ctx context.Context, client clientv3.KV, id *api.TaskID) (*Task, error) {
+	if err := checkTaskID(id); err != nil {
+		return nil, err
+	}
+
 	key := taskKey(id)
 
 	resp, err := client.Get(ctx, key)
@@ -209,12 +218,123 @@ func parseTask(kv *mvccpb.KeyValue) (*Task, error) {
 		return nil, err
 	}
 
+	if err := checkTask(task); err != nil {
+		return nil, err
+	}
+
 	// Ensure the task matches its key
 	if task.Id.Uuid != taskID(key).Uuid {
 		return nil, fmt.Errorf("key mismatch key: %s, proto: %s", key, task.Id.Uuid)
 	}
 
 	return task, nil
+}
+
+// checkTask ensures all the required fields of a Task are present
+func checkTask(task *Task) error {
+	if err := checkTaskStatus(task.Status); err != nil {
+		return err
+	}
+	if err := checkTaskRequest(task.Request); err != nil {
+		return err
+	}
+	if err := checkTaskID(task.Id); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// checkTaskStatus ensures all the required fields of a TaskStatus are present
+func checkTaskStatus(status *api.TaskStatus) error {
+	if status == nil {
+		return fmt.Errorf("TaskStatus missing")
+	}
+
+	switch status.Status.(type) {
+	case *api.TaskStatus_Queued_:
+		return nil
+
+	case *api.TaskStatus_Running_:
+		return checkNodeID(status.GetRunning().NodeId)
+
+	case *api.TaskStatus_Complete_:
+		if err := checkNodeID(status.GetComplete().NodeId); err != nil {
+			return err
+		}
+
+		// Can't check ExitCode, as 0 is a valid value..
+
+		if status.GetComplete().Epoch == 0 {
+			return fmt.Errorf("TaskStatus.Complete missing required field epoch")
+		}
+
+	case *api.TaskStatus_Canceled_:
+		if status.GetCanceled().Epoch == 0 {
+			return fmt.Errorf("TaskStatus.Canceled missing required field epoch")
+		}
+
+		return nil
+
+	case *api.TaskStatus_Failed_:
+		if status.GetFailed().Error == "" {
+			return fmt.Errorf("TaskStatus.Failed missing required field error")
+		}
+
+		return nil
+
+	default:
+		return fmt.Errorf("TaskStatus field Status has unknown type")
+	}
+
+	return nil
+}
+
+// checkTaskRequest ensures all the required fields of a TaskRequest are present
+func checkTaskRequest(req *api.TaskRequest) error {
+	if req == nil {
+		return fmt.Errorf("TaskRequest missing")
+	}
+
+	if req.Command == "" {
+		return fmt.Errorf("TaskRequest missing required field command")
+	}
+
+	return nil
+}
+
+// checkTaskID ensures all the required fields of a TaskID are present
+func checkTaskID(id *api.TaskID) error {
+	if id == nil {
+		return fmt.Errorf("TaskID missing")
+	}
+
+	if id.Uuid == "" {
+		return fmt.Errorf("TaskID missing required field UUID")
+	}
+
+	return nil
+}
+
+// checkNodeID ensures all the required fields of a NodeID are present
+func checkNodeID(id *api.NodeID) error {
+	if id == nil {
+		return fmt.Errorf("NodeID missing")
+	}
+
+	if id.Uuid == "" {
+		return fmt.Errorf("NodeID missing required field UUID")
+	}
+
+	if id.Ip == "" {
+		return fmt.Errorf("NodeID missing required field IP")
+	}
+
+	if id.Port == 0 {
+		return fmt.Errorf("NodeID missing required field port")
+	}
+
+	return nil
 }
 
 // taskKey returns the etcd key for a TaskID
@@ -282,8 +402,13 @@ func idKey(prefix string, key *api.TaskID) string {
 }
 
 // setStatus Updates the status of a Task, and updates the Task and its status key in etcd
+// newStatus is sanitized / checked
 // err is a ConcurrentTaskModErr IFF the task was modified before we could set the status
 func (t *Task) setStatus(ctx context.Context, client clientv3.KV, newStatus *api.TaskStatus) (err error) {
+	if err := checkTaskStatus(newStatus); err != nil {
+		return err
+	}
+
 	// Disallow changing to the same status
 	if t.Status != nil && reflect.TypeOf(t.Status.Status) == reflect.TypeOf(newStatus.Status) {
 		return fmt.Errorf("task already has status %T", t.Status.Status)
